@@ -2,6 +2,7 @@ import type { BoltMetrics } from "./calculateBoltMetrics";
 import type { DateRangeFilter, MonthlyRevenueRow } from "./dateFilter";
 import type { ProfitBreakdown, ProfitSettings } from "./estimateProfit";
 import type { DriverInsights } from "@/lib/types/analytics";
+import type { WorkRecommendations } from "@/lib/types/recommendations";
 
 export interface ReportSummary {
   dateRange: {
@@ -26,6 +27,9 @@ export interface ReportSummary {
   hourlyRevenue: BoltMetrics["hourlyRevenue"];
   topPickups: BoltMetrics["topPickups"];
   driverInsights: DriverInsights;
+  /** Whether recommendations used all imported data or the filtered selection. */
+  workRecommendationsUseAllData: boolean;
+  workRecommendations: WorkRecommendations;
 }
 
 interface BuildArgs {
@@ -37,6 +41,8 @@ interface BuildArgs {
   settings: ProfitSettings;
   monthlyRevenue: MonthlyRevenueRow[];
   insights: DriverInsights;
+  workRecommendationsUseAllData: boolean;
+  workRecommendations: WorkRecommendations;
 }
 
 /**
@@ -52,6 +58,8 @@ export function buildReportSummary({
   settings,
   monthlyRevenue,
   insights,
+  workRecommendationsUseAllData,
+  workRecommendations,
 }: BuildArgs): ReportSummary {
   return {
     dateRange: {
@@ -76,5 +84,7 @@ export function buildReportSummary({
     hourlyRevenue: metrics.hourlyRevenue,
     topPickups: metrics.topPickups,
     driverInsights: insights,
+    workRecommendationsUseAllData,
+    workRecommendations,
   };
 }

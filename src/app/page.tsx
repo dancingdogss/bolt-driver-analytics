@@ -20,6 +20,7 @@ import {
   type ProfitSettings,
 } from "@/lib/analytics/estimateProfit";
 import { calculateDriverInsights } from "@/lib/analytics/calculateDriverInsights";
+import { calculateWorkRecommendations } from "@/lib/analytics/calculateWorkRecommendations";
 import { buildReportSummary } from "@/lib/analytics/reportSummary";
 import type { BoltTrip, ImportSummary } from "@/lib/types/bolt";
 import { formatNumber } from "@/lib/utils/money";
@@ -30,6 +31,7 @@ import RevenueByMonthTable from "@/components/RevenueByMonthTable";
 import ProfitSettingsPanel from "@/components/ProfitSettingsPanel";
 import EstimatedProfitCard from "@/components/EstimatedProfitCard";
 import DriverInsights from "@/components/DriverInsights";
+import WorkRecommendations from "@/components/WorkRecommendations";
 import ExportSummaryButton from "@/components/ExportSummaryButton";
 import KpiCards from "@/components/KpiCards";
 import PaymentSplitChart from "@/components/PaymentSplitChart";
@@ -160,6 +162,40 @@ function setStoredSimpleMode(enabled: boolean) {
   simpleModeListeners.forEach((l) => l());
 }
 
+// --- Recommendations data-source toggle (defaults to ALL imported data) ---
+const REC_ALL_DATA_KEY = "bolt-driver-analytics:rec-all-data:v1";
+let recAllDataCache: boolean | null = null;
+const recAllDataListeners = new Set<() => void>();
+
+function getRecAllDataSnapshot(): boolean {
+  if (recAllDataCache === null) {
+    try {
+      // Default on: only an explicit "0" turns it off.
+      recAllDataCache = window.localStorage.getItem(REC_ALL_DATA_KEY) !== "0";
+    } catch {
+      recAllDataCache = true;
+    }
+  }
+  return recAllDataCache;
+}
+
+function getServerRecAllDataSnapshot(): boolean {
+  return true;
+}
+
+function subscribeRecAllData(callback: () => void): () => void {
+  recAllDataListeners.add(callback);
+  return () => recAllDataListeners.delete(callback);
+}
+
+function setStoredRecAllData(enabled: boolean) {
+  recAllDataCache = enabled;
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem(REC_ALL_DATA_KEY, enabled ? "1" : "0");
+  }
+  recAllDataListeners.forEach((l) => l());
+}
+
 export default function Home() {
   const trips = useSyncExternalStore(
     subscribeTrips,
@@ -175,6 +211,11 @@ export default function Home() {
     subscribeSimpleMode,
     getSimpleModeSnapshot,
     getServerSimpleModeSnapshot,
+  );
+  const recUseAllData = useSyncExternalStore(
+    subscribeRecAllData,
+    getRecAllDataSnapshot,
+    getServerRecAllDataSnapshot,
   );
   const [summary, setSummary] = useState<ImportSummary | null>(null);
   const [busy, setBusy] = useState(false);
@@ -217,6 +258,14 @@ export default function Home() {
         profit.estimatedProfit,
       ),
     [filteredTrips, metrics, selectedDays, profit.estimatedProfit],
+  );
+
+  // Recommendations use the full dataset by default (more data = better tipare),
+  // or the filtered selection when the toggle is off.
+  const recommendationTrips = recUseAllData ? trips : filteredTrips;
+  const recommendations = useMemo(
+    () => calculateWorkRecommendations(recommendationTrips),
+    [recommendationTrips],
   );
 
   async function handleFiles(files: File[]) {
@@ -284,6 +333,8 @@ export default function Home() {
                       settings,
                       monthlyRevenue,
                       insights,
+                      workRecommendationsUseAllData: recUseAllData,
+                      workRecommendations: recommendations,
                     })
                   }
                 />
@@ -339,6 +390,13 @@ export default function Home() {
 
           {/* Driver insights */}
           <DriverInsights insights={insights} />
+
+          {/* Work recommendations */}
+          <WorkRecommendations
+            data={recommendations}
+            useAllData={recUseAllData}
+            onToggleUseAllData={setStoredRecAllData}
+          />
 
           {/* Revenue by month (full dataset, click to filter) */}
           <RevenueByMonthTable
