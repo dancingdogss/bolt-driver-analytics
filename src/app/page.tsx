@@ -19,6 +19,8 @@ import {
   profitSettingsSchema,
   type ProfitSettings,
 } from "@/lib/analytics/estimateProfit";
+import { calculateDriverInsights } from "@/lib/analytics/calculateDriverInsights";
+import { buildReportSummary } from "@/lib/analytics/reportSummary";
 import type { BoltTrip, ImportSummary } from "@/lib/types/bolt";
 import { formatNumber } from "@/lib/utils/money";
 import UploadZone from "@/components/UploadZone";
@@ -26,6 +28,8 @@ import DateFilter from "@/components/DateFilter";
 import RevenueByMonthTable from "@/components/RevenueByMonthTable";
 import ProfitSettingsPanel from "@/components/ProfitSettingsPanel";
 import EstimatedProfitCard from "@/components/EstimatedProfitCard";
+import DriverInsights from "@/components/DriverInsights";
+import ExportSummaryButton from "@/components/ExportSummaryButton";
 import KpiCards from "@/components/KpiCards";
 import PaymentSplitChart from "@/components/PaymentSplitChart";
 import DailyRevenueChart from "@/components/DailyRevenueChart";
@@ -164,6 +168,18 @@ export default function Home() {
     [metrics.totalRevenue, metrics.totalTrips, selectedDays, settings],
   );
 
+  // Driver insights for the selected range.
+  const insights = useMemo(
+    () =>
+      calculateDriverInsights(
+        filteredTrips,
+        metrics,
+        selectedDays,
+        profit.estimatedProfit,
+      ),
+    [filteredTrips, metrics, selectedDays, profit.estimatedProfit],
+  );
+
   async function handleFiles(files: File[]) {
     setBusy(true);
     try {
@@ -207,13 +223,29 @@ export default function Home() {
           </p>
         </div>
         {trips.length > 0 && (
-          <button
-            onClick={requestClear}
-            className="inline-flex items-center gap-2 rounded-lg border border-zinc-700 px-3 py-1.5 text-sm text-zinc-300 transition-colors hover:bg-zinc-800"
-          >
-            <Trash2 className="h-4 w-4" />
-            Clear imported data
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <ExportSummaryButton
+              build={() =>
+                buildReportSummary({
+                  filter,
+                  rangeLabel,
+                  selectedDays,
+                  metrics,
+                  profit,
+                  settings,
+                  monthlyRevenue,
+                  insights,
+                })
+              }
+            />
+            <button
+              onClick={requestClear}
+              className="inline-flex items-center gap-2 rounded-lg border border-zinc-700 px-3 py-1.5 text-sm text-zinc-300 transition-colors hover:bg-zinc-800"
+            >
+              <Trash2 className="h-4 w-4" />
+              Clear imported data
+            </button>
+          </div>
         )}
       </header>
 
@@ -242,6 +274,9 @@ export default function Home() {
           {/* Estimated profit */}
           <ProfitSettingsPanel settings={settings} onChange={setStoredSettings} />
           <EstimatedProfitCard breakdown={profit} rangeLabel={rangeLabel} />
+
+          {/* Driver insights */}
+          <DriverInsights insights={insights} />
 
           {/* Revenue by month (full dataset, click to filter) */}
           <RevenueByMonthTable

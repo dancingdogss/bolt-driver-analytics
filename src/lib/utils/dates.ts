@@ -41,6 +41,17 @@ export function getMonthKey(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 }
 
+const MONTHS_SHORT = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+] as const;
+
+/** Format a `yyyy-MM-dd` day key as `01 Jun 2026` (deterministic, no locale). */
+export function formatDayKeyLong(dayKey: string): string {
+  const [year, month, day] = dayKey.split("-").map(Number);
+  return `${String(day).padStart(2, "0")} ${MONTHS_SHORT[month - 1]} ${year}`;
+}
+
 /** Human-friendly month label, e.g. "June 2026". Fixed locale for SSR safety. */
 export function formatMonthLabel(monthKey: string): string {
   const [year, month] = monthKey.split("-").map(Number);
