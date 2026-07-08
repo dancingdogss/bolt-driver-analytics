@@ -42,22 +42,31 @@ export function parseMoney(raw: string | number | null | undefined): number {
   return negative ? -value : value;
 }
 
-/** Format a number as RON currency for display. */
+// Fixed locale so grouping/decimals are identical on server and client
+// (avoids hydration mismatches from system-default locale).
+const NUMBER_LOCALE = "en-US";
+
+/** Format a value as RON currency for display, e.g. `27,157.90 RON`. */
 export function formatRon(value: number): string {
   if (!Number.isFinite(value)) return "—";
-  return new Intl.NumberFormat("ro-RO", {
-    style: "currency",
-    currency: "RON",
+  const amount = new Intl.NumberFormat(NUMBER_LOCALE, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(value);
+  return `${amount} RON`;
 }
 
-/** Format a plain number with Romanian grouping (no currency symbol). */
+/** Format a plain number with thousands grouping (no currency symbol). */
 export function formatNumber(value: number, fractionDigits = 0): string {
   if (!Number.isFinite(value)) return "—";
-  return new Intl.NumberFormat("ro-RO", {
+  return new Intl.NumberFormat(NUMBER_LOCALE, {
     minimumFractionDigits: fractionDigits,
     maximumFractionDigits: fractionDigits,
   }).format(value);
+}
+
+/** Format a value as a percentage with one decimal, e.g. `13.3%`. */
+export function formatPercent(value: number, fractionDigits = 1): string {
+  if (!Number.isFinite(value)) return "—";
+  return `${value.toFixed(fractionDigits)}%`;
 }

@@ -63,6 +63,17 @@ describe("calculateProfit", () => {
     );
   });
 
+  it("matches the expected June 2026 figures (spec validation)", () => {
+    // 426 trips, 11,602.40 RON gross, 30-day month, default settings.
+    const b = calculateProfit(11602.4, 426, 30, DEFAULT_PROFIT_SETTINGS);
+    expect(b.boltCommissionCost).toBeCloseTo(2900.6, 2);
+    expect(b.fleetCommissionCost).toBeCloseTo(1160.24, 2);
+    expect(b.carRentCost).toBeCloseTo(2142.86, 2);
+    expect(b.fuelCost).toBeCloseTo(2142.86, 2);
+    expect(b.employmentCost).toBeCloseTo(1714.29, 2);
+    expect(b.estimatedProfit).toBeCloseTo(1541.55, 1);
+  });
+
   it("guards divisions when there is no revenue or trips", () => {
     const b = calculateProfit(0, 0, 0, DEFAULT_PROFIT_SETTINGS);
     expect(b.estimatedProfit).toBe(0);

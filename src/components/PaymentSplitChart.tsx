@@ -3,6 +3,7 @@
 import { Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import type { PaymentSplitRow } from "@/lib/analytics/calculateBoltMetrics";
 import { formatRon } from "@/lib/utils/money";
+import { ChartCard, EmptyState, TOOLTIP_PROPS } from "./ChartCard";
 
 interface PaymentSplitChartProps {
   data: PaymentSplitRow[];
@@ -22,7 +23,7 @@ function colorFor(method: string, index: number): string {
 
 export default function PaymentSplitChart({ data }: PaymentSplitChartProps) {
   return (
-    <ChartCard title="Metodă de plată">
+    <ChartCard title="Payment method">
       {data.length === 0 ? (
         <EmptyState />
       ) : (
@@ -37,46 +38,23 @@ export default function PaymentSplitChart({ data }: PaymentSplitChartProps) {
               innerRadius={60}
               outerRadius={100}
               paddingAngle={2}
+              stroke="none"
             >
               {data.map((row, i) => (
                 <Cell key={row.method} fill={colorFor(row.method, i)} />
               ))}
             </Pie>
             <Tooltip
+              {...TOOLTIP_PROPS}
               formatter={(value, _name, item) => [
                 `${formatRon(Number(value))} · ${((item?.payload?.share ?? 0) * 100).toFixed(1)}%`,
                 item?.payload?.method,
               ]}
             />
-            <Legend />
+            <Legend wrapperStyle={{ fontSize: 12, color: "#a1a1aa" }} />
           </PieChart>
         </ResponsiveContainer>
       )}
     </ChartCard>
-  );
-}
-
-export function ChartCard({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-      <h3 className="mb-4 text-sm font-semibold text-zinc-700 dark:text-zinc-200">
-        {title}
-      </h3>
-      {children}
-    </div>
-  );
-}
-
-export function EmptyState() {
-  return (
-    <div className="flex h-[280px] items-center justify-center text-sm text-zinc-400">
-      Nu există date
-    </div>
   );
 }

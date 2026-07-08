@@ -44,8 +44,8 @@ export default function UploadZone({ onFiles, busy = false }: UploadZoneProps) {
       }}
       className={`flex cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed p-10 text-center transition-colors ${
         dragging
-          ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30"
-          : "border-zinc-300 bg-zinc-50 hover:border-zinc-400 dark:border-zinc-700 dark:bg-zinc-900/50 dark:hover:border-zinc-600"
+          ? "border-emerald-500 bg-emerald-950/30"
+          : "border-zinc-700 bg-zinc-900/50 hover:border-zinc-600"
       }`}
     >
       <input
@@ -62,14 +62,14 @@ export default function UploadZone({ onFiles, busy = false }: UploadZoneProps) {
       {busy ? (
         <Loader2 className="h-10 w-10 animate-spin text-emerald-500" />
       ) : (
-        <UploadCloud className="h-10 w-10 text-zinc-400" />
+        <UploadCloud className="h-10 w-10 text-zinc-500" />
       )}
       <div>
-        <p className="font-medium text-zinc-800 dark:text-zinc-100">
-          {busy ? "Se procesează fișierele…" : "Încarcă fișiere CSV Bolt"}
+        <p className="font-medium text-zinc-100">
+          {busy ? "Processing files…" : "Upload Bolt CSV files"}
         </p>
-        <p className="text-sm text-zinc-500 dark:text-zinc-400">
-          Trage și plasează sau click pentru a selecta. Poți încărca mai multe fișiere.
+        <p className="text-sm text-zinc-400">
+          Drag &amp; drop or click to select. You can upload multiple files.
         </p>
       </div>
     </div>

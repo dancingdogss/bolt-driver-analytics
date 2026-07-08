@@ -183,99 +183,119 @@ export default function Home() {
   }
 
   const activeMonthKey = filter.mode === "month" ? filter.monthKey : undefined;
+  const rangeLabel = describeFilter(filter, months);
+  const hasIssues =
+    !!summary && (summary.warnings.length > 0 || summary.errors.length > 0);
+
+  function requestClear() {
+    const ok = window.confirm(
+      "Clear all imported data? This removes every trip stored in this browser and cannot be undone.",
+    );
+    if (ok) handleClear();
+  }
 
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6 lg:px-8">
       <header className="mb-8 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
+          <h1 className="text-2xl font-semibold tracking-tight text-zinc-50">
             Bolt Driver Analytics
           </h1>
-          <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-            Încarcă facturile CSV Bolt pentru a vedea veniturile și statisticile.
+          <p className="mt-1 text-sm text-zinc-400">
+            Upload your Bolt trip invoices to see revenue, trends and estimated
+            profit.
           </p>
         </div>
         {trips.length > 0 && (
           <button
-            onClick={handleClear}
-            className="inline-flex items-center gap-2 rounded-lg border border-zinc-300 px-3 py-1.5 text-sm text-zinc-600 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+            onClick={requestClear}
+            className="inline-flex items-center gap-2 rounded-lg border border-zinc-700 px-3 py-1.5 text-sm text-zinc-300 transition-colors hover:bg-zinc-800"
           >
             <Trash2 className="h-4 w-4" />
-            Șterge datele
+            Clear imported data
           </button>
         )}
       </header>
 
-      <section className="mb-8">
+      <section className="mb-8 space-y-4">
         <UploadZone onFiles={handleFiles} busy={busy} />
-        {summary && <ImportSummaryPanel summary={summary} />}
+        {summary && <ImportStats summary={summary} />}
       </section>
 
       {trips.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-zinc-300 p-12 text-center text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
-          Niciun fișier încărcat încă. Încarcă un CSV Bolt pentru a începe.
-        </div>
+        <EmptyDashboard />
       ) : (
         <div className="space-y-6">
-          <DateFilter filter={filter} months={months} onChange={setFilter} />
-
-          <div className="grid gap-6 lg:grid-cols-3">
-            <div className="lg:col-span-1">
-              <RevenueByMonthTable
-                data={monthlyRevenue}
-                activeKey={activeMonthKey}
-                onSelectMonth={(monthKey) => setFilter({ mode: "month", monthKey })}
-              />
-            </div>
-            <div className="lg:col-span-2 space-y-6">
-              <div className="flex items-baseline justify-between">
-                <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                  Se afișează:{" "}
-                  <span className="font-medium text-zinc-800 dark:text-zinc-100">
-                    {describeFilter(filter, months)}
-                  </span>{" "}
-                  · {formatNumber(filteredTrips.length)} curse
-                </p>
-              </div>
-              <KpiCards metrics={metrics} />
-            </div>
+          {/* Filter */}
+          <div className="space-y-3">
+            <DateFilter filter={filter} months={months} onChange={setFilter} />
+            <p className="px-1 text-sm text-zinc-400">
+              Showing{" "}
+              <span className="font-medium text-zinc-100">{rangeLabel}</span> ·{" "}
+              {formatNumber(filteredTrips.length)} trips
+            </p>
           </div>
 
-          <ProfitSettingsPanel settings={settings} onChange={setStoredSettings} />
-          <EstimatedProfitCard breakdown={profit} />
+          {/* Overview KPIs */}
+          <KpiCards metrics={metrics} />
 
+          {/* Estimated profit */}
+          <ProfitSettingsPanel settings={settings} onChange={setStoredSettings} />
+          <EstimatedProfitCard breakdown={profit} rangeLabel={rangeLabel} />
+
+          {/* Revenue by month (full dataset, click to filter) */}
+          <RevenueByMonthTable
+            data={monthlyRevenue}
+            activeKey={activeMonthKey}
+            onSelectMonth={(monthKey) => setFilter({ mode: "month", monthKey })}
+          />
+
+          {/* Charts */}
           <div className="grid gap-6 lg:grid-cols-2">
             <DailyRevenueChart data={metrics.dailyRevenue} />
             <PaymentSplitChart data={metrics.paymentSplit} />
           </div>
           <HourlyRevenueChart data={metrics.hourlyRevenue} />
           <TopPickupTable data={metrics.topPickups} />
+
+          {/* Import warnings & errors */}
+          {hasIssues && <ImportIssues summary={summary} />}
         </div>
       )}
     </main>
   );
 }
 
-/** Summary of the most recent import: files, rows, duplicates, warnings, errors. */
-function ImportSummaryPanel({ summary }: { summary: ImportSummary }) {
+/** Clean empty state explaining what to upload. */
+function EmptyDashboard() {
+  return (
+    <div className="rounded-2xl border border-dashed border-zinc-700 p-12 text-center">
+      <p className="text-base font-medium text-zinc-200">No data yet</p>
+      <p className="mx-auto mt-2 max-w-md text-sm text-zinc-400">
+        Upload Bolt trip invoice CSV files exported from Bolt.
+      </p>
+    </div>
+  );
+}
+
+/** Compact stats for the most recent import, shown under the upload zone. */
+function ImportStats({ summary }: { summary: ImportSummary }) {
   const stats = [
-    { label: "Fișiere încărcate", value: summary.filesUploaded },
-    { label: "Rânduri importate", value: summary.rowsParsed },
-    { label: "Duplicate ignorate", value: summary.duplicatesSkipped },
-    { label: "Avertismente", value: summary.warnings.length },
-    { label: "Erori", value: summary.errors.length },
+    { label: "Files uploaded", value: summary.filesUploaded },
+    { label: "Rows imported", value: summary.rowsParsed },
+    { label: "Duplicates ignored", value: summary.duplicatesSkipped },
+    { label: "Warnings", value: summary.warnings.length },
+    { label: "Errors", value: summary.errors.length },
   ];
 
   return (
-    <div className="mt-4 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-      <h2 className="mb-3 text-sm font-semibold text-zinc-700 dark:text-zinc-200">
-        Rezumat import
-      </h2>
+    <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5 shadow-sm">
+      <h2 className="mb-3 text-sm font-semibold text-zinc-200">Import summary</h2>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
         {stats.map((s) => (
-          <div key={s.label} className="rounded-lg bg-zinc-50 p-3 dark:bg-zinc-800/50">
-            <p className="text-xs text-zinc-500 dark:text-zinc-400">{s.label}</p>
-            <p className="mt-1 text-lg font-semibold tabular-nums text-zinc-900 dark:text-zinc-50">
+          <div key={s.label} className="rounded-lg bg-zinc-800/50 p-3">
+            <p className="text-xs text-zinc-400">{s.label}</p>
+            <p className="mt-1 text-lg font-semibold tabular-nums text-zinc-50">
               {formatNumber(s.value)}
             </p>
           </div>
@@ -283,23 +303,39 @@ function ImportSummaryPanel({ summary }: { summary: ImportSummary }) {
       </div>
 
       {summary.fileNames.length > 0 && (
-        <p className="mt-3 text-xs text-zinc-400">{summary.fileNames.join(", ")}</p>
+        <p className="mt-3 text-xs text-zinc-500">
+          {summary.fileNames.join(", ")}
+        </p>
       )}
+    </div>
+  );
+}
 
+/** Dedicated section listing recovered-row warnings and hard errors. */
+function ImportIssues({ summary }: { summary: ImportSummary }) {
+  return (
+    <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5 shadow-sm">
+      <h3 className="mb-3 text-sm font-semibold text-zinc-200">
+        Import warnings &amp; errors
+      </h3>
       {summary.warnings.length > 0 && (
         <IssueList
-          icon={<AlertTriangle className="h-4 w-4 text-amber-500" />}
-          title="Avertismente"
-          items={summary.warnings.map((w) => `${w.file} · rând ${w.row}: ${w.message}`)}
+          icon={<AlertTriangle className="h-4 w-4 text-amber-400" />}
+          title="Warnings"
           tone="amber"
+          items={summary.warnings.map(
+            (w) => `${w.file} · row ${w.row}: ${w.message}`,
+          )}
         />
       )}
       {summary.errors.length > 0 && (
         <IssueList
-          icon={<FileWarning className="h-4 w-4 text-red-500" />}
-          title="Erori"
-          items={summary.errors.map((e) => `${e.file} · rând ${e.row}: ${e.message}`)}
+          icon={<FileWarning className="h-4 w-4 text-red-400" />}
+          title="Errors"
           tone="red"
+          items={summary.errors.map(
+            (e) => `${e.file} · row ${e.row}: ${e.message}`,
+          )}
         />
       )}
     </div>
@@ -319,16 +355,16 @@ function IssueList({
 }) {
   const toneClasses =
     tone === "amber"
-      ? "border-amber-200 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-950/20"
-      : "border-red-200 bg-red-50 dark:border-red-900/50 dark:bg-red-950/20";
+      ? "border-amber-900/50 bg-amber-950/20"
+      : "border-red-900/50 bg-red-950/20";
 
   return (
-    <details className={`mt-4 rounded-lg border p-3 ${toneClasses}`}>
-      <summary className="flex cursor-pointer items-center gap-2 text-sm font-medium text-zinc-700 dark:text-zinc-200">
+    <details className={`mt-3 rounded-lg border p-3 first:mt-0 ${toneClasses}`}>
+      <summary className="flex cursor-pointer items-center gap-2 text-sm font-medium text-zinc-200">
         {icon}
         {title} ({items.length})
       </summary>
-      <ul className="mt-2 max-h-48 space-y-1 overflow-y-auto text-xs text-zinc-600 dark:text-zinc-300">
+      <ul className="mt-2 max-h-48 space-y-1 overflow-y-auto text-xs text-zinc-300">
         {items.map((item, i) => (
           <li key={i} className="font-mono">
             {item}

@@ -41,13 +41,12 @@ export function getMonthKey(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 }
 
-/** Human-friendly Romanian month label, e.g. "Iunie 2026". */
+/** Human-friendly month label, e.g. "June 2026". Fixed locale for SSR safety. */
 export function formatMonthLabel(monthKey: string): string {
   const [year, month] = monthKey.split("-").map(Number);
   const date = new Date(year, month - 1, 1);
-  const label = new Intl.DateTimeFormat("ro-RO", {
+  return new Intl.DateTimeFormat("en-US", {
     month: "long",
     year: "numeric",
   }).format(date);
-  return label.charAt(0).toUpperCase() + label.slice(1);
 }

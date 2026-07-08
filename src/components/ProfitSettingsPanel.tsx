@@ -19,11 +19,11 @@ interface Field {
 }
 
 const FIELDS: Field[] = [
-  { key: "boltCommissionPercent", label: "Comision Bolt (estimat)", suffix: "%", max: 100 },
-  { key: "fleetCommissionPercent", label: "Comision flotă", suffix: "%", max: 100 },
-  { key: "weeklyCarRent", label: "Chirie mașină / săptămână", suffix: "RON" },
-  { key: "weeklyFuelCost", label: "Combustibil / săptămână", suffix: "RON" },
-  { key: "weeklyEmploymentCost", label: "Carte de muncă / săptămână", suffix: "RON" },
+  { key: "boltCommissionPercent", label: "Bolt commission (estimate)", suffix: "%", max: 100 },
+  { key: "fleetCommissionPercent", label: "Fleet commission", suffix: "%", max: 100 },
+  { key: "weeklyCarRent", label: "Car rent / week", suffix: "RON" },
+  { key: "weeklyFuelCost", label: "Fuel cost / week", suffix: "RON" },
+  { key: "weeklyEmploymentCost", label: "Employment (carte de muncă) / week", suffix: "RON" },
 ];
 
 /** Editable MVP cost assumptions used by the profit estimate. */
@@ -38,16 +38,16 @@ export default function ProfitSettingsPanel({
   }
 
   return (
-    <details className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-      <summary className="flex cursor-pointer items-center gap-2 text-sm font-semibold text-zinc-700 dark:text-zinc-200">
+    <details className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4 shadow-sm">
+      <summary className="flex cursor-pointer items-center gap-2 text-sm font-semibold text-zinc-200">
         <SlidersHorizontal className="h-4 w-4" />
-        Ipoteze de cost (editabile)
+        Cost assumptions (editable)
       </summary>
 
       <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {FIELDS.map((field) => (
           <label key={field.key} className="flex flex-col gap-1 text-sm">
-            <span className="text-zinc-500 dark:text-zinc-400">{field.label}</span>
+            <span className="text-zinc-400">{field.label}</span>
             <div className="flex items-center gap-2">
               <input
                 type="number"
@@ -56,9 +56,9 @@ export default function ProfitSettingsPanel({
                 step="any"
                 value={settings[field.key]}
                 onChange={(e) => update(field.key, e.target.value)}
-                className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-zinc-800 tabular-nums dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-zinc-100 tabular-nums focus:border-emerald-500 focus:outline-none"
               />
-              <span className="text-xs text-zinc-400">{field.suffix}</span>
+              <span className="text-xs text-zinc-500">{field.suffix}</span>
             </div>
           </label>
         ))}
@@ -66,10 +66,10 @@ export default function ProfitSettingsPanel({
 
       <button
         onClick={() => onChange({ ...DEFAULT_PROFIT_SETTINGS })}
-        className="mt-4 inline-flex items-center gap-2 rounded-lg border border-zinc-300 px-3 py-1.5 text-sm text-zinc-600 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+        className="mt-4 inline-flex items-center gap-2 rounded-lg border border-zinc-700 px-3 py-1.5 text-sm text-zinc-300 transition-colors hover:bg-zinc-800"
       >
         <RotateCcw className="h-4 w-4" />
-        Resetează la valorile implicite
+        Reset defaults
       </button>
     </details>
   );
