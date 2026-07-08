@@ -33,10 +33,11 @@ export default function ExportSummaryButton({ build }: ExportSummaryButtonProps)
   return (
     <button
       onClick={handleExport}
-      className="inline-flex items-center gap-2 rounded-lg border border-zinc-700 px-3 py-1.5 text-sm text-zinc-300 transition-colors hover:bg-zinc-800"
+      title="Descarcă un fișier cu datele calculate pentru perioada selectată."
+      className="inline-flex items-center gap-2 rounded-lg border border-zinc-600 px-4 py-2.5 text-base text-zinc-200 transition-colors hover:bg-zinc-800"
     >
-      <Download className="h-4 w-4" />
-      Export summary
+      <Download className="h-5 w-5" aria-hidden />
+      Exportă sumar JSON
     </button>
   );
 }

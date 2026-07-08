@@ -39,13 +39,14 @@ export default function UploadZone({ onFiles, busy = false }: UploadZoneProps) {
       onClick={() => !busy && inputRef.current?.click()}
       role="button"
       tabIndex={0}
+      aria-label="Încarcă fișiere CSV Bolt"
       onKeyDown={(e) => {
         if ((e.key === "Enter" || e.key === " ") && !busy) inputRef.current?.click();
       }}
-      className={`flex cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed p-10 text-center transition-colors ${
+      className={`flex cursor-pointer flex-col items-center justify-center gap-4 rounded-2xl border-2 border-dashed p-10 text-center transition-colors ${
         dragging
           ? "border-emerald-500 bg-emerald-950/30"
-          : "border-zinc-700 bg-zinc-900/50 hover:border-zinc-600"
+          : "border-zinc-600 bg-zinc-900/50 hover:border-zinc-500"
       }`}
     >
       <input
@@ -60,16 +61,23 @@ export default function UploadZone({ onFiles, busy = false }: UploadZoneProps) {
         }}
       />
       {busy ? (
-        <Loader2 className="h-10 w-10 animate-spin text-emerald-500" />
+        <Loader2 className="h-12 w-12 animate-spin text-emerald-500" />
       ) : (
-        <UploadCloud className="h-10 w-10 text-zinc-500" />
+        <UploadCloud className="h-12 w-12 text-zinc-400" />
       )}
-      <div>
-        <p className="font-medium text-zinc-100">
-          {busy ? "Processing files…" : "Upload Bolt CSV files"}
+      <div className="space-y-2">
+        <p className="text-xl font-semibold text-zinc-50">
+          {busy ? "Se procesează fișierele…" : "Încarcă fișiere CSV Bolt"}
+        </p>
+        <p className="text-base text-zinc-300">
+          Trage fișierele aici sau apasă pentru selectare. Poți încărca mai multe
+          luni.
         </p>
         <p className="text-sm text-zinc-400">
-          Drag &amp; drop or click to select. You can upload multiple files.
+          Acceptă fișiere .csv descărcate din Bolt → Facturi călătorie.
+        </p>
+        <p className="text-sm text-amber-300">
+          Nu încărca poze sau PDF-uri aici. În această versiune folosim doar CSV.
         </p>
       </div>
     </div>

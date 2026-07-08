@@ -37,10 +37,10 @@ describe("calculateDriverInsights", () => {
   const insights = calculateDriverInsights(TRIPS, metrics, 30, 300);
 
   it("finds best/worst day and best/worst active hour", () => {
-    expect(insights.bestDay?.label).toBe("01 Jun 2026");
+    expect(insights.bestDay?.label).toBe("01 Iun 2026");
     expect(insights.bestDay?.revenue).toBeCloseTo(180);
     expect(insights.bestDay?.trips).toBe(2);
-    expect(insights.worstDay?.label).toBe("02 Jun 2026");
+    expect(insights.worstDay?.label).toBe("02 Iun 2026");
     expect(insights.worstDay?.revenue).toBeCloseTo(20);
 
     expect(insights.bestHour?.label).toBe("13:00");

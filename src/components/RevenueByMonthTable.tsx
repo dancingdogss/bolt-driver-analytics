@@ -22,21 +22,26 @@ export default function RevenueByMonthTable({
   const totalRevenue = data.reduce((s, r) => s + r.revenue, 0);
 
   return (
-    <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5 shadow-sm">
-      <h3 className="mb-4 text-sm font-semibold text-zinc-200">
-        Revenue by month{" "}
-        <span className="font-normal text-zinc-500">(all data)</span>
+    <section className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5 shadow-sm sm:p-6">
+      <h3 className="text-lg font-semibold text-zinc-100">
+        Venit pe luni{" "}
+        <span className="text-sm font-normal text-zinc-400">(toate datele)</span>
       </h3>
+      <p className="mb-4 mt-1 text-sm text-zinc-400">
+        Apasă pe o lună pentru a vedea doar datele din luna respectivă.
+      </p>
       {data.length === 0 ? (
-        <div className="py-8 text-center text-sm text-zinc-500">No data</div>
+        <div className="py-8 text-center text-base text-zinc-400">
+          Nu există date
+        </div>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-base">
             <thead>
-              <tr className="border-b border-zinc-800 text-left text-xs uppercase tracking-wide text-zinc-400">
-                <th className="py-2 pr-4 font-medium">Month</th>
-                <th className="py-2 pr-4 text-right font-medium">Trips</th>
-                <th className="py-2 text-right font-medium">Revenue</th>
+              <tr className="border-b border-zinc-800 text-left text-sm text-zinc-400">
+                <th className="py-2.5 pr-4 font-medium">Luna</th>
+                <th className="py-2.5 pr-4 text-right font-medium">Curse</th>
+                <th className="py-2.5 text-right font-medium">Venit</th>
               </tr>
             </thead>
             <tbody>
@@ -54,13 +59,13 @@ export default function RevenueByMonthTable({
                         : "hover:bg-zinc-800/40"
                     }`}
                   >
-                    <td className="py-2 pr-4 font-medium text-zinc-100">
+                    <td className="py-2.5 pr-4 font-medium text-zinc-100">
                       {row.label}
                     </td>
-                    <td className="py-2 pr-4 text-right tabular-nums text-zinc-300">
+                    <td className="py-2.5 pr-4 text-right tabular-nums text-zinc-300">
                       {formatNumber(row.trips)}
                     </td>
-                    <td className="py-2 text-right font-medium tabular-nums text-zinc-50">
+                    <td className="py-2.5 text-right font-medium tabular-nums text-zinc-50">
                       {formatRon(row.revenue)}
                     </td>
                   </tr>
@@ -69,11 +74,11 @@ export default function RevenueByMonthTable({
             </tbody>
             <tfoot>
               <tr className="border-t-2 border-zinc-700">
-                <td className="py-2 pr-4 font-semibold text-zinc-200">Total</td>
-                <td className="py-2 pr-4 text-right font-semibold tabular-nums text-zinc-200">
+                <td className="py-2.5 pr-4 font-semibold text-zinc-200">Total</td>
+                <td className="py-2.5 pr-4 text-right font-semibold tabular-nums text-zinc-200">
                   {formatNumber(totalTrips)}
                 </td>
-                <td className="py-2 text-right font-semibold tabular-nums text-zinc-50">
+                <td className="py-2.5 text-right font-semibold tabular-nums text-zinc-50">
                   {formatRon(totalRevenue)}
                 </td>
               </tr>
@@ -81,6 +86,6 @@ export default function RevenueByMonthTable({
           </table>
         </div>
       )}
-    </div>
+    </section>
   );
 }

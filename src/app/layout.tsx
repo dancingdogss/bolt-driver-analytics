@@ -14,7 +14,8 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Bolt Driver Analytics",
-  description: "Analytics for Bolt driver trip invoices",
+  description:
+    "Analiză pentru șoferii Bolt: venit, curse și profit estimat din fișierele CSV de facturi călătorie",
 };
 
 export default function RootLayout({
@@ -24,7 +25,7 @@ export default function RootLayout({
 }>) {
   return (
     <html
-      lang="en"
+      lang="ro"
       suppressHydrationWarning
       className={`dark ${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >

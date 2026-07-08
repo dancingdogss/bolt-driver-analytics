@@ -48,7 +48,7 @@ export function calculateDriverInsights(
   // Pickups: most common (by trip count) and highest revenue.
   const byAddress = new Map<string, PickupInsight>();
   for (const trip of trips) {
-    const address = trip.pickupAddress || "(unknown)";
+    const address = trip.pickupAddress || "(necunoscut)";
     const row = byAddress.get(address) ?? { address, trips: 0, revenue: 0 };
     row.trips += 1;
     row.revenue += trip.totalValue;

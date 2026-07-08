@@ -3,17 +3,21 @@
 import { Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import type { PaymentSplitRow } from "@/lib/analytics/calculateBoltMetrics";
 import { formatRon } from "@/lib/utils/money";
-import { ChartCard, EmptyState, TOOLTIP_PROPS } from "./ChartCard";
+import { paymentMethodLabel } from "@/lib/utils/labels";
+import { CHART_COLORS, ChartCard, EmptyState, TOOLTIP_PROPS } from "./ChartCard";
 
 interface PaymentSplitChartProps {
   data: PaymentSplitRow[];
 }
 
-/** Stable colors per known payment method, with a fallback palette. */
+/**
+ * Stable colors per known raw payment method (colors follow the entity, not
+ * its rank), with a fallback palette for unexpected methods.
+ */
 const METHOD_COLORS: Record<string, string> = {
-  "Bolt Payment": "#10b981",
-  Numerar: "#f59e0b",
-  Business: "#6366f1",
+  "Bolt Payment": CHART_COLORS.emerald,
+  Numerar: CHART_COLORS.amber,
+  Business: CHART_COLORS.indigo,
 };
 const FALLBACK_COLORS = ["#64748b", "#0ea5e9", "#ec4899", "#84cc16"];
 
@@ -22,17 +26,26 @@ function colorFor(method: string, index: number): string {
 }
 
 export default function PaymentSplitChart({ data }: PaymentSplitChartProps) {
+  // Translate only the display name; `method` stays the raw CSV value.
+  const displayData = data.map((row) => ({
+    ...row,
+    displayMethod: paymentMethodLabel(row.method),
+  }));
+
   return (
-    <ChartCard title="Payment method">
+    <ChartCard
+      title="Metode de plată"
+      subtitle="Cât ai încasat în numerar, prin aplicație sau de la firme."
+    >
       {data.length === 0 ? (
         <EmptyState />
       ) : (
         <ResponsiveContainer width="100%" height={280}>
           <PieChart>
             <Pie
-              data={data}
+              data={displayData}
               dataKey="revenue"
-              nameKey="method"
+              nameKey="displayMethod"
               cx="50%"
               cy="50%"
               innerRadius={60}
@@ -40,7 +53,7 @@ export default function PaymentSplitChart({ data }: PaymentSplitChartProps) {
               paddingAngle={2}
               stroke="none"
             >
-              {data.map((row, i) => (
+              {displayData.map((row, i) => (
                 <Cell key={row.method} fill={colorFor(row.method, i)} />
               ))}
             </Pie>
@@ -48,10 +61,10 @@ export default function PaymentSplitChart({ data }: PaymentSplitChartProps) {
               {...TOOLTIP_PROPS}
               formatter={(value, _name, item) => [
                 `${formatRon(Number(value))} · ${((item?.payload?.share ?? 0) * 100).toFixed(1)}%`,
-                item?.payload?.method,
+                item?.payload?.displayMethod,
               ]}
             />
-            <Legend wrapperStyle={{ fontSize: 12, color: "#a1a1aa" }} />
+            <Legend wrapperStyle={{ fontSize: 14, color: "#a1a1aa" }} />
           </PieChart>
         </ResponsiveContainer>
       )}

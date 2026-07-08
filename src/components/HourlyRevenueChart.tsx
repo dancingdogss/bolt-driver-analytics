@@ -11,7 +11,14 @@ import {
 } from "recharts";
 import type { HourlyRevenueRow } from "@/lib/analytics/calculateBoltMetrics";
 import { formatNumber, formatRon } from "@/lib/utils/money";
-import { AXIS_TICK, ChartCard, EmptyState, GRID_STROKE, TOOLTIP_PROPS } from "./ChartCard";
+import {
+  AXIS_TICK,
+  CHART_COLORS,
+  ChartCard,
+  EmptyState,
+  GRID_STROKE,
+  TOOLTIP_PROPS,
+} from "./ChartCard";
 
 interface HourlyRevenueChartProps {
   data: HourlyRevenueRow[];
@@ -22,7 +29,10 @@ export default function HourlyRevenueChart({ data }: HourlyRevenueChartProps) {
   const hasData = data.some((d) => d.trips > 0);
 
   return (
-    <ChartCard title="Revenue by hour">
+    <ChartCard
+      title="Venit pe ore"
+      subtitle="La ce ore din zi ai încasat cel mai mult."
+    >
       {!hasData ? (
         <EmptyState />
       ) : (
@@ -37,13 +47,13 @@ export default function HourlyRevenueChart({ data }: HourlyRevenueChartProps) {
             />
             <Tooltip
               {...TOOLTIP_PROPS}
-              formatter={(value) => [formatRon(Number(value)), "Revenue"]}
+              formatter={(value) => [formatRon(Number(value)), "Venit"]}
               labelFormatter={(label, payload) => {
                 const trips = payload?.[0]?.payload?.trips;
-                return `${label}${trips != null ? ` · ${trips} trips` : ""}`;
+                return `${label}${trips != null ? ` · ${trips} curse` : ""}`;
               }}
             />
-            <Bar dataKey="revenue" fill="#6366f1" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="revenue" fill={CHART_COLORS.indigo} radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       )}

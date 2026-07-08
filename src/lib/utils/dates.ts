@@ -41,23 +41,26 @@ export function getMonthKey(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 }
 
+/** Romanian month abbreviations, index 0 = January (Ianuarie). */
 const MONTHS_SHORT = [
-  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+  "Ian", "Feb", "Mar", "Apr", "Mai", "Iun",
+  "Iul", "Aug", "Sep", "Oct", "Noi", "Dec",
 ] as const;
 
-/** Format a `yyyy-MM-dd` day key as `01 Jun 2026` (deterministic, no locale). */
+/** Romanian month names, index 0 = January. Fixed list for SSR determinism. */
+const MONTHS_LONG = [
+  "Ianuarie", "Februarie", "Martie", "Aprilie", "Mai", "Iunie",
+  "Iulie", "August", "Septembrie", "Octombrie", "Noiembrie", "Decembrie",
+] as const;
+
+/** Format a `yyyy-MM-dd` day key as `01 Iun 2026` (deterministic, no locale). */
 export function formatDayKeyLong(dayKey: string): string {
   const [year, month, day] = dayKey.split("-").map(Number);
   return `${String(day).padStart(2, "0")} ${MONTHS_SHORT[month - 1]} ${year}`;
 }
 
-/** Human-friendly month label, e.g. "June 2026". Fixed locale for SSR safety. */
+/** Human-friendly Romanian month label, e.g. "Iunie 2026". */
 export function formatMonthLabel(monthKey: string): string {
   const [year, month] = monthKey.split("-").map(Number);
-  const date = new Date(year, month - 1, 1);
-  return new Intl.DateTimeFormat("en-US", {
-    month: "long",
-    year: "numeric",
-  }).format(date);
+  return `${MONTHS_LONG[month - 1]} ${year}`;
 }

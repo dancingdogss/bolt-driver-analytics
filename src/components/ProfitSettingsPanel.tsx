@@ -19,14 +19,17 @@ interface Field {
 }
 
 const FIELDS: Field[] = [
-  { key: "boltCommissionPercent", label: "Bolt commission (estimate)", suffix: "%", max: 100 },
-  { key: "fleetCommissionPercent", label: "Fleet commission", suffix: "%", max: 100 },
-  { key: "weeklyCarRent", label: "Car rent / week", suffix: "RON" },
-  { key: "weeklyFuelCost", label: "Fuel cost / week", suffix: "RON" },
-  { key: "weeklyEmploymentCost", label: "Employment (carte de muncă) / week", suffix: "RON" },
+  { key: "boltCommissionPercent", label: "Comision Bolt estimat (%)", suffix: "%", max: 100 },
+  { key: "fleetCommissionPercent", label: "Comision flotă (%)", suffix: "%", max: 100 },
+  { key: "weeklyCarRent", label: "Chirie mașină / săptămână", suffix: "RON" },
+  { key: "weeklyFuelCost", label: "Combustibil / săptămână", suffix: "RON" },
+  { key: "weeklyEmploymentCost", label: "Carte de muncă / săptămână", suffix: "RON" },
 ];
 
-/** Editable MVP cost assumptions used by the profit estimate. */
+/**
+ * Editable MVP cost assumptions used by the profit estimate. Always visible —
+ * older users should never have to discover a collapsed panel to edit costs.
+ */
 export default function ProfitSettingsPanel({
   settings,
   onChange,
@@ -38,16 +41,19 @@ export default function ProfitSettingsPanel({
   }
 
   return (
-    <details className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4 shadow-sm">
-      <summary className="flex cursor-pointer items-center gap-2 text-sm font-semibold text-zinc-200">
-        <SlidersHorizontal className="h-4 w-4" />
-        Cost assumptions (editable)
-      </summary>
+    <section className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5 shadow-sm sm:p-6">
+      <h3 className="flex items-center gap-2 text-lg font-semibold text-zinc-100">
+        <SlidersHorizontal className="h-5 w-5 text-zinc-400" aria-hidden />
+        Costuri folosite pentru calcul
+      </h3>
+      <p className="mt-1 text-sm text-zinc-400">
+        Poți modifica aceste valori în funcție de situația ta reală.
+      </p>
 
-      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {FIELDS.map((field) => (
-          <label key={field.key} className="flex flex-col gap-1 text-sm">
-            <span className="text-zinc-400">{field.label}</span>
+          <label key={field.key} className="flex flex-col gap-1.5 text-base">
+            <span className="text-zinc-300">{field.label}</span>
             <div className="flex items-center gap-2">
               <input
                 type="number"
@@ -56,9 +62,9 @@ export default function ProfitSettingsPanel({
                 step="any"
                 value={settings[field.key]}
                 onChange={(e) => update(field.key, e.target.value)}
-                className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-zinc-100 tabular-nums focus:border-emerald-500 focus:outline-none"
+                className="w-full rounded-lg border border-zinc-600 bg-zinc-950 px-3 py-2.5 text-base text-zinc-100 tabular-nums focus:border-emerald-500 focus:outline-none"
               />
-              <span className="text-xs text-zinc-500">{field.suffix}</span>
+              <span className="text-sm text-zinc-400">{field.suffix}</span>
             </div>
           </label>
         ))}
@@ -66,11 +72,11 @@ export default function ProfitSettingsPanel({
 
       <button
         onClick={() => onChange({ ...DEFAULT_PROFIT_SETTINGS })}
-        className="mt-4 inline-flex items-center gap-2 rounded-lg border border-zinc-700 px-3 py-1.5 text-sm text-zinc-300 transition-colors hover:bg-zinc-800"
+        className="mt-5 inline-flex items-center gap-2 rounded-lg border border-zinc-600 px-4 py-2.5 text-base text-zinc-200 transition-colors hover:bg-zinc-800"
       >
-        <RotateCcw className="h-4 w-4" />
-        Reset defaults
+        <RotateCcw className="h-5 w-5" aria-hidden />
+        Resetează valorile standard
       </button>
-    </details>
+    </section>
   );
 }

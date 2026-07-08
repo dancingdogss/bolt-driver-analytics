@@ -11,7 +11,14 @@ import {
 } from "recharts";
 import type { DailyRevenueRow } from "@/lib/analytics/calculateBoltMetrics";
 import { formatNumber, formatRon } from "@/lib/utils/money";
-import { AXIS_TICK, ChartCard, EmptyState, GRID_STROKE, TOOLTIP_PROPS } from "./ChartCard";
+import {
+  AXIS_TICK,
+  CHART_COLORS,
+  ChartCard,
+  EmptyState,
+  GRID_STROKE,
+  TOOLTIP_PROPS,
+} from "./ChartCard";
 
 interface DailyRevenueChartProps {
   data: DailyRevenueRow[];
@@ -20,7 +27,7 @@ interface DailyRevenueChartProps {
 /** Revenue per day, keyed off the real trip date (Data călătoriei). */
 export default function DailyRevenueChart({ data }: DailyRevenueChartProps) {
   return (
-    <ChartCard title="Daily revenue">
+    <ChartCard title="Venit zilnic" subtitle="Cât ai încasat în fiecare zi.">
       {data.length === 0 ? (
         <EmptyState />
       ) : (
@@ -35,13 +42,13 @@ export default function DailyRevenueChart({ data }: DailyRevenueChartProps) {
             />
             <Tooltip
               {...TOOLTIP_PROPS}
-              formatter={(value) => [formatRon(Number(value)), "Revenue"]}
+              formatter={(value) => [formatRon(Number(value)), "Venit"]}
               labelFormatter={(label, payload) => {
                 const trips = payload?.[0]?.payload?.trips;
-                return `${label}${trips != null ? ` · ${trips} trips` : ""}`;
+                return `${label}${trips != null ? ` · ${trips} curse` : ""}`;
               }}
             />
-            <Bar dataKey="revenue" fill="#10b981" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="revenue" fill={CHART_COLORS.emerald} radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       )}
