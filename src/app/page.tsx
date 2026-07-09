@@ -668,19 +668,33 @@ function ImportStats({ summary }: { summary: ImportSummary }) {
  * live inside collapsible "Detalii tehnice" lists so they don't alarm anyone.
  */
 function ImportIssues({ summary }: { summary: ImportSummary }) {
+  const w = summary.warnings.length;
+  const e = summary.errors.length;
+
+  // Plain-language summary: auto-repaired rows are reassuring, not alarming.
+  const repairedMsg =
+    w === 1
+      ? "Am găsit 1 rând cu format diferit în CSV, dar aplicația l-a reparat automat."
+      : `Am găsit ${formatNumber(w)} rânduri cu format diferit în CSV, dar aplicația le-a reparat automat.`;
+  const errorMsg =
+    e === 1
+      ? "1 rând nu a putut fi importat și a fost ignorat."
+      : `${formatNumber(e)} rânduri nu au putut fi importate și au fost ignorate.`;
+
   return (
     <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5 shadow-sm">
-      <h3 className="mb-1 text-lg font-semibold text-zinc-100">
-        Avertismente și erori la import
+      <h3 className="mb-2 text-lg font-semibold text-zinc-100">
+        Note despre importul CSV
       </h3>
+      {w > 0 && <p className="mb-2 text-base text-zinc-200">{repairedMsg}</p>}
+      {e > 0 && <p className="mb-2 text-base text-zinc-200">{errorMsg}</p>}
       <p className="mb-3 text-sm text-zinc-400">
-        Unele rânduri din fișiere au avut probleme. Datele corecte au fost
-        importate normal.
+        Restul datelor au fost importate normal.
       </p>
       {summary.warnings.length > 0 && (
         <IssueList
           icon={<AlertTriangle className="h-5 w-5 text-amber-400" aria-hidden />}
-          title="Avertismente"
+          title="Rânduri reparate automat"
           tone="amber"
           items={summary.warnings.map(
             (w) => `${w.file} · rând ${w.row}: ${w.message}`,

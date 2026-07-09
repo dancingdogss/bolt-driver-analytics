@@ -2,22 +2,52 @@ import { ChevronDown } from "lucide-react";
 
 const STEPS: { title: string; text: string }[] = [
   {
-    title: "1. Descarcă CSV-urile din Bolt",
-    text: "Intră în Bolt și descarcă fișierele Facturi călătorie pentru lunile dorite.",
+    title: "Pasul 1: Încarcă CSV-ul Bolt",
+    text: "Fișierul cu facturi călătorie din Bolt. Poți încărca mai multe luni deodată.",
   },
   {
-    title: "2. Încarcă fișierele aici",
-    text: "Poți încărca mai multe luni deodată.",
+    title: "Pasul 2: Încarcă PDF-ul lunar (opțional)",
+    text: "Rezumatul lunar Bolt aduce taxa Bolt reală și kilometrii reali, pentru un calcul mai precis.",
   },
   {
-    title: "3. Alege luna și verifică rezultatele",
-    text: "Aplicația calculează automat venitul, cursele, TVA-ul, metodele de plată și profitul estimat.",
+    title: "Pasul 3: Alege luna și verifică profitul",
+    text: "Aplicația calculează venitul, cursele și profitul estimat pentru luna aleasă.",
   },
 ];
 
 const TITLE = "Cum folosești aplicația";
-const CSV_EXPLANATION =
-  "Fișiere CSV Bolt = fișierele de facturi călătorie descărcate din contul Bolt.";
+
+/** Plain-language explanation of what each file brings, side by side. */
+function FileTypeCards() {
+  const cards = [
+    {
+      tag: "CSV",
+      title: "Curse individuale",
+      text: "Fiecare cursă: zile, ore, adresă de preluare și plată cash / card / business.",
+    },
+    {
+      tag: "PDF",
+      title: "Taxă Bolt reală + kilometri reali",
+      text: "Rezumatul lunar Bolt cu taxa Bolt exactă și kilometrii reali pentru luna respectivă.",
+    },
+  ];
+  return (
+    <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+      {cards.map((card) => (
+        <div
+          key={card.tag}
+          className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4"
+        >
+          <span className="inline-block rounded-md bg-zinc-800 px-2 py-0.5 text-xs font-semibold text-zinc-200">
+            {card.tag}
+          </span>
+          <p className="mt-2 text-base font-semibold text-zinc-100">{card.title}</p>
+          <p className="mt-1 text-sm leading-relaxed text-zinc-300">{card.text}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 function StepCards() {
   return (
@@ -35,7 +65,7 @@ function StepCards() {
           </div>
         ))}
       </div>
-      <p className="mt-3 text-sm text-zinc-400">{CSV_EXPLANATION}</p>
+      <FileTypeCards />
     </>
   );
 }

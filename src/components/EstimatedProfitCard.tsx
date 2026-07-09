@@ -41,6 +41,9 @@ export default function EstimatedProfitCard({
             ? "Profit estimat cu date reale din PDF"
             : "Profit estimat după costuri"}
         </h3>
+        <span className="rounded-full bg-zinc-800 px-2.5 py-0.5 text-sm font-medium text-zinc-300">
+          Calcul estimativ
+        </span>
         {highPrecision ? (
           <span className="rounded-full bg-emerald-950/50 px-2.5 py-0.5 text-sm font-medium text-emerald-300">
             Precizie ridicată
@@ -52,7 +55,9 @@ export default function EstimatedProfitCard({
         )}
       </div>
       <p className="mb-4 text-sm text-zinc-400">
-        Calcul orientativ pentru perioada selectată ·{" "}
+        {highPrecision
+          ? "Calcul mai precis, pe baza datelor importate (CSV + PDF) ·"
+          : "Calcul estimativ, pe baza datelor importate (CSV) ·"}{" "}
         <span className="font-medium text-zinc-200">{rangeLabel}</span> ·{" "}
         {formatNumber(b.trips)} curse
       </p>
@@ -122,7 +127,7 @@ export default function EstimatedProfitCard({
           >
             <p className="text-sm font-medium text-zinc-300">Profit estimat</p>
             <p
-              className={`mt-1 text-4xl font-bold tabular-nums ${
+              className={`mt-1 text-3xl font-bold tabular-nums break-words sm:text-4xl ${
                 profitPositive ? "text-emerald-400" : "text-red-400"
               }`}
             >
