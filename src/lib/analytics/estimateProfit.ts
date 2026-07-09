@@ -1,35 +1,8 @@
-import { z } from "zod";
-
-/**
- * Editable MVP cost assumptions. Percentages are whole numbers (25 = 25%).
- *
- * NOTE: the Bolt CSV export does not contain the real Bolt commission
- * (`Taxă Bolt`) as a column, so `boltCommissionPercent` is an ESTIMATE. Monthly
- * Bolt summary PDFs can later replace it with the exact value.
- */
-export interface ProfitSettings {
-  boltCommissionPercent: number;
-  fleetCommissionPercent: number;
-  weeklyCarRent: number;
-  weeklyFuelCost: number;
-  weeklyEmploymentCost: number;
-}
-
-export const DEFAULT_PROFIT_SETTINGS: ProfitSettings = {
-  boltCommissionPercent: 25,
-  fleetCommissionPercent: 10,
-  weeklyCarRent: 500,
-  weeklyFuelCost: 500,
-  weeklyEmploymentCost: 400,
-};
-
-export const profitSettingsSchema = z.object({
-  boltCommissionPercent: z.number().min(0).max(100),
-  fleetCommissionPercent: z.number().min(0).max(100),
-  weeklyCarRent: z.number().min(0),
-  weeklyFuelCost: z.number().min(0),
-  weeklyEmploymentCost: z.number().min(0),
-});
+import {
+  calculateExpenses,
+  type ExpenseBreakdown,
+  type ExpenseSettings,
+} from "./calculateExpenses";
 
 /**
  * Real figures pulled from a matching Bolt monthly-summary PDF. When present,
@@ -50,11 +23,18 @@ export interface ProfitBreakdown {
   grossRevenue: number;
   trips: number;
   selectedDays: number;
+  /** Real Bolt fee (PDF) or the percentage estimate. */
   boltCommissionCost: number;
+  /** Named costs, normalized to the selected period (see `expenses` for all). */
   fleetCommissionCost: number;
   carRentCost: number;
   fuelCost: number;
   employmentCost: number;
+  serviceCost: number;
+  carWashCost: number;
+  otherCost: number;
+  /** The full itemized non-Bolt cost breakdown for the period. */
+  expenses: ExpenseBreakdown;
   totalExpenses: number;
   estimatedProfit: number;
   profitPerTrip: number;
@@ -77,58 +57,58 @@ export interface ProfitBreakdown {
   profitPerKm: number | null;
 }
 
+/** Amount of a named expense line, for the flat convenience fields. */
+function lineAmount(expenses: ExpenseBreakdown, key: string): number {
+  return expenses.lines.find((l) => l.key === key)?.amount ?? 0;
+}
+
 /**
  * Compute the estimated profit from gross revenue, trip count and the number of
  * calendar days in the active filter range.
  *
- * Weekly costs are prorated per day (`weekly / 7 * selectedDays`); commissions
- * are a share of gross revenue.
- *
- * When `override` is supplied (a matching monthly PDF exists), the real Bolt fee
- * replaces the estimated percentage and the accuracy becomes "high". The
- * remaining costs (fleet, rent, fuel, employment) stay estimated because the PDF
- * does not contain them.
+ * Costs come from {@link calculateExpenses}, which normalizes every configured
+ * cost (per day/week/month/km/percent) onto the selected period. The Bolt fee
+ * is the real one from a matching monthly PDF when `override` is supplied
+ * (accuracy becomes "high"); otherwise the percentage estimate is used.
  */
 export function calculateProfit(
   grossRevenue: number,
   trips: number,
   selectedDays: number,
-  settings: ProfitSettings,
+  settings: ExpenseSettings,
   override?: MonthlyProfitOverride,
 ): ProfitBreakdown {
   const estimatedBoltFee = grossRevenue * (settings.boltCommissionPercent / 100);
   const usedMonthlyPdf = !!override && override.boltFee > 0;
-
   const boltCommissionCost = usedMonthlyPdf ? override!.boltFee : estimatedBoltFee;
-  const fleetCommissionCost =
-    grossRevenue * (settings.fleetCommissionPercent / 100);
-  const carRentCost = selectedDays * (settings.weeklyCarRent / 7);
-  const fuelCost = selectedDays * (settings.weeklyFuelCost / 7);
-  const employmentCost = selectedDays * (settings.weeklyEmploymentCost / 7);
-
-  const totalExpenses =
-    boltCommissionCost +
-    fleetCommissionCost +
-    carRentCost +
-    fuelCost +
-    employmentCost;
-
-  const estimatedProfit = grossRevenue - totalExpenses;
 
   const km =
     usedMonthlyPdf && override!.tripKilometers > 0
       ? override!.tripKilometers
       : null;
 
+  const expenses = calculateExpenses(settings, {
+    selectedDays,
+    grossRevenue,
+    kilometers: km,
+  });
+
+  const totalExpenses = boltCommissionCost + expenses.total;
+  const estimatedProfit = grossRevenue - totalExpenses;
+
   return {
     grossRevenue,
     trips,
     selectedDays,
     boltCommissionCost,
-    fleetCommissionCost,
-    carRentCost,
-    fuelCost,
-    employmentCost,
+    fleetCommissionCost: lineAmount(expenses, "fleetCommission"),
+    carRentCost: lineAmount(expenses, "carRent"),
+    fuelCost: lineAmount(expenses, "fuel"),
+    employmentCost: lineAmount(expenses, "employment"),
+    serviceCost: lineAmount(expenses, "service"),
+    carWashCost: lineAmount(expenses, "carWash"),
+    otherCost: lineAmount(expenses, "other"),
+    expenses,
     totalExpenses,
     estimatedProfit,
     profitPerTrip: trips > 0 ? estimatedProfit / trips : 0,
@@ -142,4 +122,59 @@ export function calculateProfit(
     costPerKm: km ? totalExpenses / km : null,
     profitPerKm: km ? estimatedProfit / km : null,
   };
+}
+
+// --- Scenarios ----------------------------------------------------------------
+
+export type ScenarioId = "conservative" | "realistic" | "optimistic";
+
+/** One what-if estimate derived from the base breakdown. */
+export interface ProfitScenario {
+  id: ScenarioId;
+  label: string;
+  /** Multiplier applied to the adjustable costs (1 = as entered). */
+  costMultiplier: number;
+  totalExpenses: number;
+  estimatedProfit: number;
+  profitPerTrip: number;
+  /** Profit per km, or null when kilometrage is unknown. */
+  profitPerKm: number | null;
+  /** Share of revenue left as profit, in percent. */
+  profitMarginPercent: number;
+}
+
+const SCENARIOS: { id: ScenarioId; label: string; costMultiplier: number }[] = [
+  { id: "conservative", label: "Scenariu conservator", costMultiplier: 1.15 },
+  { id: "realistic", label: "Scenariu realist", costMultiplier: 1 },
+  { id: "optimistic", label: "Scenariu optimist", costMultiplier: 0.9 },
+];
+
+/**
+ * Simple what-if estimates: conservative = costs +15%, realistic = costs as
+ * entered, optimistic = costs −10%.
+ *
+ * When the real Bolt fee comes from a PDF it is KNOWN, so it stays fixed and
+ * only the user-entered costs scale. Without a PDF everything is an estimate
+ * and the whole cost base scales.
+ */
+export function calculateProfitScenarios(b: ProfitBreakdown): ProfitScenario[] {
+  const fixedCosts = b.usedMonthlyPdf ? b.boltCommissionCost : 0;
+  const adjustableCosts = b.totalExpenses - fixedCosts;
+
+  return SCENARIOS.map(({ id, label, costMultiplier }) => {
+    const totalExpenses = fixedCosts + adjustableCosts * costMultiplier;
+    const estimatedProfit = b.grossRevenue - totalExpenses;
+    return {
+      id,
+      label,
+      costMultiplier,
+      totalExpenses,
+      estimatedProfit,
+      profitPerTrip: b.trips > 0 ? estimatedProfit / b.trips : 0,
+      profitPerKm:
+        b.tripKilometers !== null ? estimatedProfit / b.tripKilometers : null,
+      profitMarginPercent:
+        b.grossRevenue > 0 ? (estimatedProfit / b.grossRevenue) * 100 : 0,
+    };
+  });
 }

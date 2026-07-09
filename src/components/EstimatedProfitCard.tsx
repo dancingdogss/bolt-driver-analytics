@@ -1,5 +1,6 @@
 import { Info } from "lucide-react";
 import type { ProfitBreakdown } from "@/lib/analytics/estimateProfit";
+import { FREQUENCY_LABELS } from "@/lib/analytics/calculateExpenses";
 import { formatNumber, formatPercent, formatRon } from "@/lib/utils/money";
 
 interface EstimatedProfitCardProps {
@@ -23,14 +24,26 @@ export default function EstimatedProfitCard({
   const profitPositive = b.estimatedProfit >= 0;
   const highPrecision = b.usedMonthlyPdf;
 
-  const costRows: { label: string; value: number; estimate?: boolean }[] = [
+  // Bolt fee first, then every configured cost line (skip empty ones so the
+  // breakdown stays short and readable).
+  const costRows: {
+    label: string;
+    value: number;
+    estimate?: boolean;
+    note?: string;
+  }[] = [
     highPrecision
       ? { label: "Taxă Bolt reală", value: b.boltCommissionCost }
       : { label: "Comision Bolt estimat", value: b.boltCommissionCost, estimate: true },
-    { label: "Comision flotă", value: b.fleetCommissionCost },
-    { label: "Chirie mașină", value: b.carRentCost },
-    { label: "Combustibil", value: b.fuelCost },
-    { label: "Carte de muncă", value: b.employmentCost },
+    ...b.expenses.lines
+      .filter((line) => line.amount > 0 || line.needsKm)
+      .map((line) => ({
+        label: line.label,
+        value: line.amount,
+        note: line.needsKm
+          ? "necesită kilometri din PDF"
+          : `${formatNumber(line.input.value, line.input.frequency === "perKm" ? 2 : 0)} ${FREQUENCY_LABELS[line.input.frequency]}`,
+      })),
   ];
 
   return (
@@ -86,20 +99,26 @@ export default function EstimatedProfitCard({
       )}
 
       <div className="grid gap-6 lg:grid-cols-2">
-        {/* Breakdown */}
+        {/* Breakdown: cum se calculează profitul */}
         <div className="text-base">
+          <h4 className="mb-2 text-base font-semibold text-zinc-100">
+            Cum se calculează profitul
+          </h4>
           <Row label="Venit total" value={formatRon(b.grossRevenue)} strong />
           <div className="my-2 border-t border-zinc-800" />
           {costRows.map((row) => (
             <Row
               key={row.label}
               label={
-                <span className="flex items-center gap-1.5">
+                <span className="flex flex-wrap items-center gap-1.5">
                   {row.label}
                   {row.estimate && (
                     <span className="rounded bg-amber-950/50 px-1.5 text-xs font-medium text-amber-300">
                       estimare
                     </span>
+                  )}
+                  {row.note && (
+                    <span className="text-xs text-zinc-500">({row.note})</span>
                   )}
                 </span>
               }
@@ -113,8 +132,24 @@ export default function EstimatedProfitCard({
             value={`− ${formatRon(b.totalExpenses)}`}
             strong
           />
+          <div className="my-2 border-t border-zinc-800" />
+          <Row
+            label="Profit estimat"
+            value={formatRon(b.estimatedProfit)}
+            strong
+          />
           <p className="mt-3 text-sm text-zinc-400">
             Calculat pentru {formatNumber(b.selectedDays)} zile calendaristice.
+          </p>
+          {b.expenses.kmCostSkipped && (
+            <p className="mt-2 text-sm text-amber-300">
+              Un cost pe km nu a putut fi aplicat: nu există kilometri reali.
+              Încarcă PDF-ul lunar Bolt pentru un calcul mai precis.
+            </p>
+          )}
+          <p className="mt-2 text-sm text-zinc-400">
+            Profitul este estimativ și depinde de costurile introduse. Nu este
+            raport fiscal oficial.
           </p>
         </div>
 

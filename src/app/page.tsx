@@ -15,10 +15,15 @@ import {
 } from "@/lib/analytics/dateFilter";
 import {
   calculateProfit,
-  DEFAULT_PROFIT_SETTINGS,
-  profitSettingsSchema,
-  type ProfitSettings,
+  calculateProfitScenarios,
 } from "@/lib/analytics/estimateProfit";
+import {
+  DEFAULT_EXPENSE_SETTINGS,
+  expenseSettingsSchema,
+  legacyProfitSettingsSchema,
+  migrateLegacySettings,
+  type ExpenseSettings,
+} from "@/lib/analytics/calculateExpenses";
 import { calculateDriverInsights } from "@/lib/analytics/calculateDriverInsights";
 import { calculateWorkRecommendations } from "@/lib/analytics/calculateWorkRecommendations";
 import { calculateMonthlyDriverReport } from "@/lib/analytics/calculateMonthlyDriverReport";
@@ -41,6 +46,7 @@ import HowToUse from "@/components/HowToUse";
 import RevenueByMonthTable from "@/components/RevenueByMonthTable";
 import ProfitSettingsPanel from "@/components/ProfitSettingsPanel";
 import EstimatedProfitCard from "@/components/EstimatedProfitCard";
+import ProfitScenarios from "@/components/ProfitScenarios";
 import MonthlyDriverReport from "@/components/MonthlyDriverReport";
 import DriverInsights from "@/components/DriverInsights";
 import WorkRecommendations from "@/components/WorkRecommendations";
@@ -100,32 +106,40 @@ function setStoredTrips(trips: BoltTrip[]) {
   listeners.forEach((l) => l());
 }
 
-// --- Profit settings store (same SSR-safe localStorage pattern) ---
-const SETTINGS_KEY = "bolt-driver-analytics:profit-settings:v1";
-let settingsCache: ProfitSettings | null = null;
+// --- Expense settings store (same SSR-safe localStorage pattern) ---
+const SETTINGS_KEY = "bolt-driver-analytics:expense-settings:v1";
+/** Pre-expense-settings key; migrated on first load so no values are lost. */
+const LEGACY_SETTINGS_KEY = "bolt-driver-analytics:profit-settings:v1";
+let settingsCache: ExpenseSettings | null = null;
 const settingsListeners = new Set<() => void>();
 
-function loadSettings(): ProfitSettings {
-  if (typeof window === "undefined") return DEFAULT_PROFIT_SETTINGS;
+function loadSettings(): ExpenseSettings {
+  if (typeof window === "undefined") return DEFAULT_EXPENSE_SETTINGS;
   try {
     const raw = window.localStorage.getItem(SETTINGS_KEY);
-    if (!raw) return DEFAULT_PROFIT_SETTINGS;
-    const parsed = profitSettingsSchema.safeParse(JSON.parse(raw));
-    return parsed.success
-      ? { ...DEFAULT_PROFIT_SETTINGS, ...parsed.data }
-      : DEFAULT_PROFIT_SETTINGS;
+    if (raw) {
+      const parsed = expenseSettingsSchema.safeParse(JSON.parse(raw));
+      if (parsed.success) return parsed.data;
+    }
+    // Migrate the old flat weekly settings, if present.
+    const legacyRaw = window.localStorage.getItem(LEGACY_SETTINGS_KEY);
+    if (legacyRaw) {
+      const legacy = legacyProfitSettingsSchema.safeParse(JSON.parse(legacyRaw));
+      if (legacy.success) return migrateLegacySettings(legacy.data);
+    }
+    return DEFAULT_EXPENSE_SETTINGS;
   } catch {
-    return DEFAULT_PROFIT_SETTINGS;
+    return DEFAULT_EXPENSE_SETTINGS;
   }
 }
 
-function getSettingsSnapshot(): ProfitSettings {
+function getSettingsSnapshot(): ExpenseSettings {
   if (settingsCache === null) settingsCache = loadSettings();
   return settingsCache;
 }
 
-function getServerSettingsSnapshot(): ProfitSettings {
-  return DEFAULT_PROFIT_SETTINGS;
+function getServerSettingsSnapshot(): ExpenseSettings {
+  return DEFAULT_EXPENSE_SETTINGS;
 }
 
 function subscribeSettings(callback: () => void): () => void {
@@ -133,7 +147,7 @@ function subscribeSettings(callback: () => void): () => void {
   return () => settingsListeners.delete(callback);
 }
 
-function setStoredSettings(settings: ProfitSettings) {
+function setStoredSettings(settings: ExpenseSettings) {
   settingsCache = settings;
   if (typeof window !== "undefined") {
     window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
@@ -347,6 +361,9 @@ export default function Home() {
     [metrics.totalRevenue, metrics.totalTrips, selectedDays, settings, pdfOverride],
   );
 
+  // What-if estimates derived from the same breakdown (no recalculation).
+  const scenarios = useMemo(() => calculateProfitScenarios(profit), [profit]);
+
   // Monthly driver report — only when a specific month is selected. Reuses the
   // already-computed metrics/profit, so no calculation is duplicated.
   const monthlyReport = useMemo(() => {
@@ -490,6 +507,7 @@ export default function Home() {
                       metrics,
                       profit,
                       settings,
+                      profitScenarios: scenarios,
                       monthlyRevenue,
                       insights,
                       workRecommendationsUseAllData: recUseAllData,
@@ -555,6 +573,12 @@ export default function Home() {
           {/* Cost assumptions + estimated profit */}
           <ProfitSettingsPanel settings={settings} onChange={setStoredSettings} />
           <EstimatedProfitCard breakdown={profit} rangeLabel={rangeLabel} />
+
+          {/* What-if scenarios around the entered costs */}
+          <ProfitScenarios
+            scenarios={scenarios}
+            usedMonthlyPdf={profit.usedMonthlyPdf}
+          />
 
           {/* Monthly driver report (month filter only) */}
           <MonthlyDriverReport

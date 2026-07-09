@@ -1,10 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { calculateMonthlyDriverReport } from "./calculateMonthlyDriverReport";
 import type { BoltMetrics } from "./calculateBoltMetrics";
-import {
-  calculateProfit,
-  DEFAULT_PROFIT_SETTINGS,
-} from "./estimateProfit";
+import { calculateProfit } from "./estimateProfit";
+import { DEFAULT_EXPENSE_SETTINGS } from "./calculateExpenses";
 
 /** Minimal June-2026 metrics: Tuesday (02.06) is clearly the best day. */
 function juneMetrics(): BoltMetrics {
@@ -40,7 +38,7 @@ function juneMetrics(): BoltMetrics {
 describe("calculateMonthlyDriverReport", () => {
   it("returns null for a month with no trips", () => {
     const metrics = { ...juneMetrics(), totalTrips: 0 };
-    const profit = calculateProfit(0, 0, 30, DEFAULT_PROFIT_SETTINGS);
+    const profit = calculateProfit(0, 0, 30, DEFAULT_EXPENSE_SETTINGS);
     expect(
       calculateMonthlyDriverReport({ monthKey: "2026-06", metrics, profit }),
     ).toBeNull();
@@ -48,7 +46,7 @@ describe("calculateMonthlyDriverReport", () => {
 
   it("identifies the best day, hour window and pickup", () => {
     const metrics = juneMetrics();
-    const profit = calculateProfit(5000, 100, 30, DEFAULT_PROFIT_SETTINGS);
+    const profit = calculateProfit(5000, 100, 30, DEFAULT_EXPENSE_SETTINGS);
     const report = calculateMonthlyDriverReport({
       monthKey: "2026-06",
       metrics,
@@ -63,7 +61,7 @@ describe("calculateMonthlyDriverReport", () => {
 
   it("mentions the estimated commission and medium accuracy without a PDF", () => {
     const metrics = juneMetrics();
-    const profit = calculateProfit(5000, 100, 30, DEFAULT_PROFIT_SETTINGS);
+    const profit = calculateProfit(5000, 100, 30, DEFAULT_EXPENSE_SETTINGS);
     const report = calculateMonthlyDriverReport({
       monthKey: "2026-06",
       metrics,
@@ -82,7 +80,7 @@ describe("calculateMonthlyDriverReport", () => {
 
   it("uses the real Bolt fee and kilometers when a monthly PDF matched", () => {
     const metrics = juneMetrics();
-    const profit = calculateProfit(5000, 100, 30, DEFAULT_PROFIT_SETTINGS, {
+    const profit = calculateProfit(5000, 100, 30, DEFAULT_EXPENSE_SETTINGS, {
       boltFee: 1100.5,
       tripKilometers: 2452.01,
     });
@@ -103,7 +101,7 @@ describe("calculateMonthlyDriverReport", () => {
 
   it("keeps the copy text WhatsApp-friendly (one fact per line)", () => {
     const metrics = juneMetrics();
-    const profit = calculateProfit(5000, 100, 30, DEFAULT_PROFIT_SETTINGS);
+    const profit = calculateProfit(5000, 100, 30, DEFAULT_EXPENSE_SETTINGS);
     const report = calculateMonthlyDriverReport({
       monthKey: "2026-06",
       metrics,
@@ -121,8 +119,11 @@ describe("calculateMonthlyDriverReport", () => {
     const metrics = juneMetrics();
     // Force a low-margin month so the cautious margin bullet appears too.
     const profit = calculateProfit(5000, 100, 30, {
-      ...DEFAULT_PROFIT_SETTINGS,
-      weeklyCarRent: 900,
+      ...DEFAULT_EXPENSE_SETTINGS,
+      items: {
+        ...DEFAULT_EXPENSE_SETTINGS.items,
+        carRent: { value: 900, frequency: "perWeek" },
+      },
     });
     const report = calculateMonthlyDriverReport({
       monthKey: "2026-06",

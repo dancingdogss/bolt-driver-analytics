@@ -1,6 +1,7 @@
 import type { BoltMetrics } from "./calculateBoltMetrics";
 import type { DateRangeFilter, MonthlyRevenueRow } from "./dateFilter";
-import type { ProfitBreakdown, ProfitSettings } from "./estimateProfit";
+import type { ProfitBreakdown, ProfitScenario } from "./estimateProfit";
+import type { ExpenseBreakdown, ExpenseSettings } from "./calculateExpenses";
 import type { DriverInsights } from "@/lib/types/analytics";
 import type { WorkRecommendations } from "@/lib/types/recommendations";
 import type { BoltMonthlySummary } from "@/lib/types/monthlySummary";
@@ -22,7 +23,13 @@ export interface ReportSummary {
     vatTotal: number;
     averageTripValue: number;
   };
-  profit: ProfitBreakdown & { settings: ProfitSettings };
+  profit: ProfitBreakdown & { settings: ExpenseSettings };
+  /** The cost assumptions used for the profit estimate. */
+  expenseSettings: ExpenseSettings;
+  /** Every cost normalized to the selected period. */
+  expenseBreakdown: ExpenseBreakdown;
+  /** Conservative / realistic / optimistic what-if estimates. */
+  profitScenarios: ProfitScenario[];
   paymentSplit: BoltMetrics["paymentSplit"];
   revenueByDay: BoltMetrics["dailyRevenue"];
   revenueByMonth: MonthlyRevenueRow[];
@@ -44,7 +51,8 @@ interface BuildArgs {
   selectedDays: number;
   metrics: BoltMetrics;
   profit: ProfitBreakdown;
-  settings: ProfitSettings;
+  settings: ExpenseSettings;
+  profitScenarios: ProfitScenario[];
   monthlyRevenue: MonthlyRevenueRow[];
   insights: DriverInsights;
   workRecommendationsUseAllData: boolean;
@@ -64,6 +72,7 @@ export function buildReportSummary({
   metrics,
   profit,
   settings,
+  profitScenarios,
   monthlyRevenue,
   insights,
   workRecommendationsUseAllData,
@@ -88,6 +97,9 @@ export function buildReportSummary({
       averageTripValue: metrics.averageTripValue,
     },
     profit: { ...profit, settings },
+    expenseSettings: settings,
+    expenseBreakdown: profit.expenses,
+    profitScenarios,
     paymentSplit: metrics.paymentSplit,
     revenueByDay: metrics.dailyRevenue,
     revenueByMonth: monthlyRevenue,

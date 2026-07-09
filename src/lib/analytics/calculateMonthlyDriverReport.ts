@@ -99,10 +99,11 @@ function biggestCost(profit: ProfitBreakdown): { label: string; value: number } 
       label: profit.usedMonthlyPdf ? "Taxă Bolt reală" : "Comision Bolt estimat",
       value: profit.boltCommissionCost,
     },
-    { label: "Comision flotă", value: profit.fleetCommissionCost },
-    { label: "Chirie mașină", value: profit.carRentCost },
-    { label: "Combustibil", value: profit.fuelCost },
-    { label: "Carte de muncă", value: profit.employmentCost },
+    // Every user-entered cost line, normalized to the period.
+    ...profit.expenses.lines.map((line) => ({
+      label: line.label,
+      value: line.amount,
+    })),
   ];
   return costs.reduce((max, c) => (c.value > max.value ? c : max));
 }
