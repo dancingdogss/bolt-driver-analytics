@@ -80,4 +80,29 @@ describe("calculateProfit", () => {
     expect(b.profitPerTrip).toBe(0);
     expect(b.profitMarginPercent).toBe(0);
   });
+
+  it("stays at medium accuracy with an estimated Bolt fee when no PDF", () => {
+    const b = calculateProfit(10000, 400, 30, DEFAULT_PROFIT_SETTINGS);
+    expect(b.usedMonthlyPdf).toBe(false);
+    expect(b.profitAccuracy).toBe("medium");
+    expect(b.estimatedBoltFee).toBeCloseTo(2500);
+    expect(b.realBoltFee).toBeNull();
+    expect(b.tripKilometers).toBeNull();
+    expect(b.profitPerKm).toBeNull();
+  });
+
+  it("uses the real Bolt fee and kilometrage from a matching PDF", () => {
+    const b = calculateProfit(12735, 426, 30, DEFAULT_PROFIT_SETTINGS, {
+      boltFee: 2708.08,
+      tripKilometers: 2452.01,
+    });
+    expect(b.usedMonthlyPdf).toBe(true);
+    expect(b.profitAccuracy).toBe("high");
+    // Real fee replaces the 25% estimate (which would have been ~3183.75).
+    expect(b.boltCommissionCost).toBeCloseTo(2708.08, 2);
+    expect(b.realBoltFee).toBeCloseTo(2708.08, 2);
+    expect(b.tripKilometers).toBeCloseTo(2452.01, 2);
+    expect(b.revenuePerKm).toBeCloseTo(12735 / 2452.01, 4);
+    expect(b.profitPerKm).toBeCloseTo(b.estimatedProfit / 2452.01, 4);
+  });
 });

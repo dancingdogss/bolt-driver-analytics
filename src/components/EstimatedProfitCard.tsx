@@ -21,9 +21,12 @@ export default function EstimatedProfitCard({
   rangeLabel,
 }: EstimatedProfitCardProps) {
   const profitPositive = b.estimatedProfit >= 0;
+  const highPrecision = b.usedMonthlyPdf;
 
   const costRows: { label: string; value: number; estimate?: boolean }[] = [
-    { label: "Comision Bolt estimat", value: b.boltCommissionCost, estimate: true },
+    highPrecision
+      ? { label: "Taxă Bolt reală", value: b.boltCommissionCost }
+      : { label: "Comision Bolt estimat", value: b.boltCommissionCost, estimate: true },
     { label: "Comision flotă", value: b.fleetCommissionCost },
     { label: "Chirie mașină", value: b.carRentCost },
     { label: "Combustibil", value: b.fuelCost },
@@ -34,11 +37,19 @@ export default function EstimatedProfitCard({
     <section className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5 shadow-sm sm:p-6">
       <div className="mb-1 flex flex-wrap items-center gap-3">
         <h3 className="text-lg font-semibold text-zinc-100">
-          Profit estimat după costuri
+          {highPrecision
+            ? "Profit estimat cu date reale din PDF"
+            : "Profit estimat după costuri"}
         </h3>
-        <span className="rounded-full bg-amber-950/50 px-2.5 py-0.5 text-sm font-medium text-amber-300">
-          Estimare
-        </span>
+        {highPrecision ? (
+          <span className="rounded-full bg-emerald-950/50 px-2.5 py-0.5 text-sm font-medium text-emerald-300">
+            Precizie ridicată
+          </span>
+        ) : (
+          <span className="rounded-full bg-amber-950/50 px-2.5 py-0.5 text-sm font-medium text-amber-300">
+            Precizie medie
+          </span>
+        )}
       </div>
       <p className="mb-4 text-sm text-zinc-400">
         Calcul orientativ pentru perioada selectată ·{" "}
@@ -46,11 +57,28 @@ export default function EstimatedProfitCard({
         {formatNumber(b.trips)} curse
       </p>
 
-      {/* Prominent disclaimer */}
-      <div className="mb-5 flex gap-2.5 rounded-xl border border-amber-900/50 bg-amber-950/20 p-4 text-sm leading-relaxed text-amber-200">
-        <Info className="mt-0.5 h-5 w-5 shrink-0" aria-hidden />
-        <p>{DISCLAIMER}</p>
-      </div>
+      {/* Precision note: real PDF data vs. estimated commission. */}
+      {highPrecision ? (
+        <div className="mb-5 flex gap-2.5 rounded-xl border border-emerald-900/50 bg-emerald-950/20 p-4 text-sm leading-relaxed text-emerald-200">
+          <Info className="mt-0.5 h-5 w-5 shrink-0" aria-hidden />
+          <p>
+            Se folosesc <span className="font-medium">Taxă Bolt reală</span> și{" "}
+            <span className="font-medium">kilometri reali</span> din rezumatul
+            lunar Bolt. Profitul rămâne estimat, dar mai precis — încă lipsesc
+            costuri exacte precum service, mentenanță și consum real.
+          </p>
+        </div>
+      ) : (
+        <div className="mb-5 flex gap-2.5 rounded-xl border border-amber-900/50 bg-amber-950/20 p-4 text-sm leading-relaxed text-amber-200">
+          <Info className="mt-0.5 h-5 w-5 shrink-0" aria-hidden />
+          <p>
+            {DISCLAIMER}{" "}
+            <span className="font-medium">
+              Încarcă PDF-ul lunar pentru un calcul mai precis.
+            </span>
+          </p>
+        </div>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Breakdown */}
@@ -116,9 +144,37 @@ export default function EstimatedProfitCard({
               </p>
             </div>
           </div>
+
+          {/* Per-km metrics — only available with real kilometrage from the PDF. */}
+          {b.tripKilometers !== null && (
+            <div className="rounded-xl bg-zinc-800/50 p-4">
+              <p className="mb-2 text-sm text-zinc-300">
+                Pe kilometru real ·{" "}
+                <span className="tabular-nums text-zinc-100">
+                  {formatNumber(b.tripKilometers, 2)} km
+                </span>
+              </p>
+              <div className="grid grid-cols-3 gap-3 text-center">
+                <KmStat label="Lei / km" value={b.revenuePerKm} />
+                <KmStat label="Cost / km" value={b.costPerKm} />
+                <KmStat label="Profit / km" value={b.profitPerKm} />
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </section>
+  );
+}
+
+function KmStat({ label, value }: { label: string; value: number | null }) {
+  return (
+    <div>
+      <p className="text-xs text-zinc-400">{label}</p>
+      <p className="mt-0.5 text-base font-semibold tabular-nums text-zinc-50">
+        {value === null ? "—" : formatRon(value)}
+      </p>
+    </div>
   );
 }
 

@@ -42,11 +42,13 @@ export function parseMoney(raw: string | number | null | undefined): number {
   return negative ? -value : value;
 }
 
-// Fixed locale so grouping/decimals are identical on server and client
-// (avoids hydration mismatches from system-default locale).
-const NUMBER_LOCALE = "en-US";
+// Fixed Romanian locale so grouping/decimals match the UI language and are
+// identical on server and client (avoids hydration mismatches from the
+// system-default locale). Romanian formats as `2.708,08` (dot thousands,
+// comma decimals).
+const NUMBER_LOCALE = "ro-RO";
 
-/** Format a value as RON currency for display, e.g. `27,157.90 RON`. */
+/** Format a value as RON currency for display, e.g. `27.157,90 RON`. */
 export function formatRon(value: number): string {
   if (!Number.isFinite(value)) return "—";
   const amount = new Intl.NumberFormat(NUMBER_LOCALE, {

@@ -3,6 +3,7 @@ import type { DateRangeFilter, MonthlyRevenueRow } from "./dateFilter";
 import type { ProfitBreakdown, ProfitSettings } from "./estimateProfit";
 import type { DriverInsights } from "@/lib/types/analytics";
 import type { WorkRecommendations } from "@/lib/types/recommendations";
+import type { BoltMonthlySummary } from "@/lib/types/monthlySummary";
 
 export interface ReportSummary {
   dateRange: {
@@ -30,6 +31,8 @@ export interface ReportSummary {
   /** Whether recommendations used all imported data or the filtered selection. */
   workRecommendationsUseAllData: boolean;
   workRecommendations: WorkRecommendations;
+  /** All imported Bolt monthly-summary PDFs, keyed implicitly by monthKey. */
+  monthlySummaries: BoltMonthlySummary[];
 }
 
 interface BuildArgs {
@@ -43,6 +46,7 @@ interface BuildArgs {
   insights: DriverInsights;
   workRecommendationsUseAllData: boolean;
   workRecommendations: WorkRecommendations;
+  monthlySummaries: BoltMonthlySummary[];
 }
 
 /**
@@ -60,6 +64,7 @@ export function buildReportSummary({
   insights,
   workRecommendationsUseAllData,
   workRecommendations,
+  monthlySummaries,
 }: BuildArgs): ReportSummary {
   return {
     dateRange: {
@@ -86,5 +91,6 @@ export function buildReportSummary({
     driverInsights: insights,
     workRecommendationsUseAllData,
     workRecommendations,
+    monthlySummaries,
   };
 }

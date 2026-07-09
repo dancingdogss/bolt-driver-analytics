@@ -77,7 +77,8 @@ export default function UploadZone({ onFiles, busy = false }: UploadZoneProps) {
           Acceptă fișiere .csv descărcate din Bolt → Facturi călătorie.
         </p>
         <p className="text-sm text-amber-300">
-          Nu încărca poze sau PDF-uri aici. În această versiune folosim doar CSV.
+          Aici doar fișiere .csv. Rezumatul lunar PDF se încarcă în zona
+          separată de mai jos.
         </p>
       </div>
     </div>

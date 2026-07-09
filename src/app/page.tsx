@@ -22,9 +22,19 @@ import {
 import { calculateDriverInsights } from "@/lib/analytics/calculateDriverInsights";
 import { calculateWorkRecommendations } from "@/lib/analytics/calculateWorkRecommendations";
 import { buildReportSummary } from "@/lib/analytics/reportSummary";
+import { parseBoltMonthlySummaryPdf } from "@/lib/parsers/parseBoltMonthlySummaryPdf";
 import type { BoltTrip, ImportSummary } from "@/lib/types/bolt";
+import {
+  boltMonthlySummarySchema,
+  type BoltMonthlySummary,
+} from "@/lib/types/monthlySummary";
+import { getMonthKey } from "@/lib/utils/dates";
 import { formatNumber } from "@/lib/utils/money";
 import UploadZone from "@/components/UploadZone";
+import MonthlyPdfUpload, {
+  type MonthlyPdfStatus,
+  type PdfMatchState,
+} from "@/components/MonthlyPdfUpload";
 import DateFilter from "@/components/DateFilter";
 import HowToUse from "@/components/HowToUse";
 import RevenueByMonthTable from "@/components/RevenueByMonthTable";
@@ -196,6 +206,59 @@ function setStoredRecAllData(enabled: boolean) {
   recAllDataListeners.forEach((l) => l());
 }
 
+// --- Monthly-summary PDFs store (same SSR-safe localStorage pattern) ---
+const SUMMARIES_KEY = "bolt-driver-analytics:monthly-summaries:v1";
+let summariesCache: BoltMonthlySummary[] | null = null;
+const summariesListeners = new Set<() => void>();
+const EMPTY_SUMMARIES: BoltMonthlySummary[] = [];
+
+function loadSummaries(): BoltMonthlySummary[] {
+  if (typeof window === "undefined") return EMPTY_SUMMARIES;
+  try {
+    const raw = window.localStorage.getItem(SUMMARIES_KEY);
+    if (!raw) return EMPTY_SUMMARIES;
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return EMPTY_SUMMARIES;
+    return parsed.flatMap((item) => {
+      const result = boltMonthlySummarySchema.safeParse(item);
+      return result.success ? [result.data] : [];
+    });
+  } catch {
+    return EMPTY_SUMMARIES;
+  }
+}
+
+function getSummariesSnapshot(): BoltMonthlySummary[] {
+  if (summariesCache === null) summariesCache = loadSummaries();
+  return summariesCache;
+}
+
+function getServerSummariesSnapshot(): BoltMonthlySummary[] {
+  return EMPTY_SUMMARIES;
+}
+
+function subscribeSummaries(callback: () => void): () => void {
+  summariesListeners.add(callback);
+  return () => summariesListeners.delete(callback);
+}
+
+function setStoredSummaries(summaries: BoltMonthlySummary[]) {
+  summariesCache = summaries;
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem(SUMMARIES_KEY, JSON.stringify(summaries));
+  }
+  summariesListeners.forEach((l) => l());
+}
+
+/** Insert or replace a summary by monthKey (one PDF per month wins). */
+function upsertSummary(
+  summaries: BoltMonthlySummary[],
+  next: BoltMonthlySummary,
+): BoltMonthlySummary[] {
+  const rest = summaries.filter((s) => s.monthKey !== next.monthKey);
+  return [...rest, next].sort((a, b) => a.monthKey.localeCompare(b.monthKey));
+}
+
 export default function Home() {
   const trips = useSyncExternalStore(
     subscribeTrips,
@@ -217,8 +280,15 @@ export default function Home() {
     getRecAllDataSnapshot,
     getServerRecAllDataSnapshot,
   );
+  const monthlySummaries = useSyncExternalStore(
+    subscribeSummaries,
+    getSummariesSnapshot,
+    getServerSummariesSnapshot,
+  );
   const [summary, setSummary] = useState<ImportSummary | null>(null);
   const [busy, setBusy] = useState(false);
+  const [pdfBusy, setPdfBusy] = useState(false);
+  const [pdfStatus, setPdfStatus] = useState<MonthlyPdfStatus | null>(null);
   const [filter, setFilter] = useState<DateRangeFilter>(ALL_FILTER);
 
   // Available months and the month-summary table come from the FULL dataset.
@@ -237,6 +307,32 @@ export default function Home() {
     () => countSelectedDays(filter, filteredTrips),
     [filter, filteredTrips],
   );
+
+  // Distinct months (yyyy-MM) covered by the current CSV selection.
+  const monthsInSelection = useMemo(() => {
+    const keys = new Set<string>();
+    for (const trip of filteredTrips) {
+      const date = new Date(trip.tripDate);
+      if (!Number.isNaN(date.getTime())) keys.add(getMonthKey(date));
+    }
+    return [...keys];
+  }, [filteredTrips]);
+
+  // Use the real PDF figures only when EVERY month in the selection has a
+  // matching summary. Custom ranges are excluded because a monthly total cannot
+  // be safely applied to a partial-month revenue slice.
+  const pdfOverride = useMemo(() => {
+    if (filter.mode === "custom" || monthsInSelection.length === 0) return undefined;
+    const byKey = new Map(monthlySummaries.map((s) => [s.monthKey, s]));
+    const matched = monthsInSelection.map((k) => byKey.get(k));
+    if (matched.some((s) => !s)) return undefined;
+    const found = matched as BoltMonthlySummary[];
+    const boltFee = found.reduce((sum, s) => sum + s.boltFee, 0);
+    const tripKilometers = found.reduce((sum, s) => sum + s.tripKilometers, 0);
+    if (!(boltFee > 0)) return undefined; // need a real fee to raise precision
+    return { boltFee, tripKilometers };
+  }, [filter.mode, monthsInSelection, monthlySummaries]);
+
   const profit = useMemo(
     () =>
       calculateProfit(
@@ -244,8 +340,9 @@ export default function Home() {
         metrics.totalTrips,
         selectedDays,
         settings,
+        pdfOverride,
       ),
-    [metrics.totalRevenue, metrics.totalTrips, selectedDays, settings],
+    [metrics.totalRevenue, metrics.totalTrips, selectedDays, settings, pdfOverride],
   );
 
   // Driver insights for the selected range.
@@ -280,11 +377,60 @@ export default function Home() {
     }
   }
 
+  async function handlePdf(file: File) {
+    setPdfBusy(true);
+    try {
+      const result = await parseBoltMonthlySummaryPdf(file);
+      if (result.error === "unreadable") {
+        setPdfStatus({
+          kind: "error",
+          message:
+            "PDF-ul nu a putut fi citit automat. Verifică dacă este rezumatul lunar Bolt.",
+        });
+        return;
+      }
+      if (result.error === "invalid" || !result.summary) {
+        setPdfStatus({
+          kind: "error",
+          message:
+            "PDF-ul nu a putut fi citit automat. Verifică dacă este rezumatul lunar Bolt.",
+        });
+        return;
+      }
+      const imported = result.summary;
+      setStoredSummaries(upsertSummary(monthlySummaries, imported));
+      // Store only the parse result; the match-to-view state is derived
+      // reactively from the active filter (see pdfMatchState) so it stays
+      // correct when the user changes the selected month after importing.
+      setPdfStatus({
+        kind: "ok",
+        summary: imported,
+        missingFields: result.missingFields,
+      });
+    } finally {
+      setPdfBusy(false);
+    }
+  }
+
   function handleClear() {
     setStoredTrips([]);
+    setStoredSummaries([]);
     setSummary(null);
+    setPdfStatus(null);
     setFilter(ALL_FILTER);
   }
+
+  // Reactive relationship between the imported PDF's month and the active
+  // filter — compared by normalized monthKey ("2026-06"), never display label.
+  const pdfMatchState: PdfMatchState | null = useMemo(() => {
+    if (!pdfStatus || pdfStatus.kind !== "ok") return null;
+    const pdfMonth = pdfStatus.summary.monthKey;
+    if (filter.mode === "all") return "all-data";
+    if (filter.mode === "month") {
+      return filter.monthKey === pdfMonth ? "matched-month" : "mismatch";
+    }
+    return monthsInSelection.includes(pdfMonth) ? "matched-month" : "mismatch";
+  }, [pdfStatus, filter, monthsInSelection]);
 
   const activeMonthKey = filter.mode === "month" ? filter.monthKey : undefined;
   const rangeLabel = describeFilter(filter, months);
@@ -335,6 +481,7 @@ export default function Home() {
                       insights,
                       workRecommendationsUseAllData: recUseAllData,
                       workRecommendations: recommendations,
+                      monthlySummaries,
                     })
                   }
                 />
@@ -365,6 +512,13 @@ export default function Home() {
       <section className="mb-8 space-y-4" aria-label="Încarcă fișiere">
         <UploadZone onFiles={handleFiles} busy={busy} />
         {summary && <ImportStats summary={summary} />}
+        <MonthlyPdfUpload
+          onFile={handlePdf}
+          busy={pdfBusy}
+          status={pdfStatus}
+          matchState={pdfMatchState}
+          importedCount={monthlySummaries.length}
+        />
       </section>
 
       {trips.length === 0 ? (
