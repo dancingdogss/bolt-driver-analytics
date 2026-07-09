@@ -21,6 +21,7 @@ import {
 } from "@/lib/analytics/estimateProfit";
 import { calculateDriverInsights } from "@/lib/analytics/calculateDriverInsights";
 import { calculateWorkRecommendations } from "@/lib/analytics/calculateWorkRecommendations";
+import { calculateMonthlyDriverReport } from "@/lib/analytics/calculateMonthlyDriverReport";
 import { buildReportSummary } from "@/lib/analytics/reportSummary";
 import { parseBoltMonthlySummaryPdf } from "@/lib/parsers/parseBoltMonthlySummaryPdf";
 import type { BoltTrip, ImportSummary } from "@/lib/types/bolt";
@@ -40,6 +41,7 @@ import HowToUse from "@/components/HowToUse";
 import RevenueByMonthTable from "@/components/RevenueByMonthTable";
 import ProfitSettingsPanel from "@/components/ProfitSettingsPanel";
 import EstimatedProfitCard from "@/components/EstimatedProfitCard";
+import MonthlyDriverReport from "@/components/MonthlyDriverReport";
 import DriverInsights from "@/components/DriverInsights";
 import WorkRecommendations from "@/components/WorkRecommendations";
 import ExportSummaryButton from "@/components/ExportSummaryButton";
@@ -345,6 +347,17 @@ export default function Home() {
     [metrics.totalRevenue, metrics.totalTrips, selectedDays, settings, pdfOverride],
   );
 
+  // Monthly driver report — only when a specific month is selected. Reuses the
+  // already-computed metrics/profit, so no calculation is duplicated.
+  const monthlyReport = useMemo(() => {
+    if (filter.mode !== "month" || !filter.monthKey) return null;
+    return calculateMonthlyDriverReport({
+      monthKey: filter.monthKey,
+      metrics,
+      profit,
+    });
+  }, [filter, metrics, profit]);
+
   // Driver insights for the selected range.
   const insights = useMemo(
     () =>
@@ -482,6 +495,7 @@ export default function Home() {
                       workRecommendationsUseAllData: recUseAllData,
                       workRecommendations: recommendations,
                       monthlySummaries,
+                      monthlyDriverReport: monthlyReport,
                     })
                   }
                 />
@@ -541,6 +555,12 @@ export default function Home() {
           {/* Cost assumptions + estimated profit */}
           <ProfitSettingsPanel settings={settings} onChange={setStoredSettings} />
           <EstimatedProfitCard breakdown={profit} rangeLabel={rangeLabel} />
+
+          {/* Monthly driver report (month filter only) */}
+          <MonthlyDriverReport
+            report={monthlyReport}
+            isMonthSelected={filter.mode === "month"}
+          />
 
           {/* Driver insights */}
           <DriverInsights insights={insights} />

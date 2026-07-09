@@ -1,0 +1,146 @@
+import { describe, it, expect } from "vitest";
+import { calculateMonthlyDriverReport } from "./calculateMonthlyDriverReport";
+import type { BoltMetrics } from "./calculateBoltMetrics";
+import {
+  calculateProfit,
+  DEFAULT_PROFIT_SETTINGS,
+} from "./estimateProfit";
+
+/** Minimal June-2026 metrics: Tuesday (02.06) is clearly the best day. */
+function juneMetrics(): BoltMetrics {
+  const hourly = Array.from({ length: 24 }, (_, hour) => ({
+    hour,
+    label: `${String(hour).padStart(2, "0")}:00`,
+    revenue: 0,
+    trips: 0,
+  }));
+  hourly[17] = { hour: 17, label: "17:00", revenue: 900, trips: 12 };
+  hourly[18] = { hour: 18, label: "18:00", revenue: 800, trips: 10 };
+  hourly[19] = { hour: 19, label: "19:00", revenue: 700, trips: 9 };
+  hourly[9] = { hour: 9, label: "09:00", revenue: 200, trips: 4 };
+
+  return {
+    totalTrips: 100,
+    totalRevenue: 5000,
+    revenueWithoutVat: 4600,
+    vatTotal: 400,
+    averageTripValue: 50,
+    paymentSplit: [],
+    dailyRevenue: [
+      // 2026-06-01 = Luni, 2026-06-02 = Marți, 2026-06-07 = Duminică.
+      { dayKey: "2026-06-01", label: "01.06.2026", revenue: 1200, trips: 25 },
+      { dayKey: "2026-06-02", label: "02.06.2026", revenue: 2600, trips: 50 },
+      { dayKey: "2026-06-07", label: "07.06.2026", revenue: 1200, trips: 25 },
+    ],
+    hourlyRevenue: hourly,
+    topPickups: [{ address: "Str. Exemplu 1", trips: 12, revenue: 700 }],
+  };
+}
+
+describe("calculateMonthlyDriverReport", () => {
+  it("returns null for a month with no trips", () => {
+    const metrics = { ...juneMetrics(), totalTrips: 0 };
+    const profit = calculateProfit(0, 0, 30, DEFAULT_PROFIT_SETTINGS);
+    expect(
+      calculateMonthlyDriverReport({ monthKey: "2026-06", metrics, profit }),
+    ).toBeNull();
+  });
+
+  it("identifies the best day, hour window and pickup", () => {
+    const metrics = juneMetrics();
+    const profit = calculateProfit(5000, 100, 30, DEFAULT_PROFIT_SETTINGS);
+    const report = calculateMonthlyDriverReport({
+      monthKey: "2026-06",
+      metrics,
+      profit,
+    })!;
+
+    expect(report.monthLabel).toBe("Iunie 2026");
+    expect(report.wentWell[0]).toContain("Marți");
+    expect(report.wentWell[1]).toContain("17:00–20:00");
+    expect(report.wentWell[2]).toContain("Str. Exemplu 1");
+  });
+
+  it("mentions the estimated commission and medium accuracy without a PDF", () => {
+    const metrics = juneMetrics();
+    const profit = calculateProfit(5000, 100, 30, DEFAULT_PROFIT_SETTINGS);
+    const report = calculateMonthlyDriverReport({
+      monthKey: "2026-06",
+      metrics,
+      profit,
+    })!;
+
+    expect(report.usedMonthlyPdf).toBe(false);
+    expect(report.accuracy).toBe("medium");
+    expect(report.conclusion).toContain("încarcă PDF-ul lunar Bolt");
+    expect(report.copyText).toContain("Comision estimat:");
+    expect(report.copyText).toContain(
+      "Observație: Calcul estimativ, pe baza datelor importate.",
+    );
+    expect(report.copyText).not.toContain("Kilometri:");
+  });
+
+  it("uses the real Bolt fee and kilometers when a monthly PDF matched", () => {
+    const metrics = juneMetrics();
+    const profit = calculateProfit(5000, 100, 30, DEFAULT_PROFIT_SETTINGS, {
+      boltFee: 1100.5,
+      tripKilometers: 2452.01,
+    });
+    const report = calculateMonthlyDriverReport({
+      monthKey: "2026-06",
+      metrics,
+      profit,
+    })!;
+
+    expect(report.usedMonthlyPdf).toBe(true);
+    expect(report.accuracy).toBe("high");
+    expect(report.kpis.some((k) => k.label === "Taxă Bolt reală")).toBe(true);
+    expect(report.kpis.some((k) => k.label === "Kilometri reali")).toBe(true);
+    expect(report.copyText).toContain("Taxă Bolt: 1.100,50 RON");
+    expect(report.copyText).toContain("Kilometri: 2.452,01 km");
+    expect(report.copyText).toContain("PDF lunar Bolt importat");
+  });
+
+  it("keeps the copy text WhatsApp-friendly (one fact per line)", () => {
+    const metrics = juneMetrics();
+    const profit = calculateProfit(5000, 100, 30, DEFAULT_PROFIT_SETTINGS);
+    const report = calculateMonthlyDriverReport({
+      monthKey: "2026-06",
+      metrics,
+      profit,
+    })!;
+
+    const lines = report.copyText.split("\n");
+    expect(lines[0]).toBe("Raport Bolt - Iunie 2026");
+    expect(lines).toContain("Curse: 100");
+    expect(lines).toContain("Cea mai bună zi: Marți");
+    expect(lines).toContain("Cel mai bun interval: 17:00–20:00");
+  });
+
+  it("never uses forbidden aggressive wording", () => {
+    const metrics = juneMetrics();
+    // Force a low-margin month so the cautious margin bullet appears too.
+    const profit = calculateProfit(5000, 100, 30, {
+      ...DEFAULT_PROFIT_SETTINGS,
+      weeklyCarRent: 900,
+    });
+    const report = calculateMonthlyDriverReport({
+      monthKey: "2026-06",
+      metrics,
+      profit,
+    })!;
+
+    const all = [
+      report.conclusion,
+      ...report.wentWell,
+      ...report.watchOut,
+      ...report.nextMonth,
+      report.copyText,
+    ]
+      .join(" ")
+      .toLowerCase();
+    for (const banned of ["garantat", "pierdut bani", "nu merită să lucrezi", "predicți"]) {
+      expect(all).not.toContain(banned);
+    }
+  });
+});
