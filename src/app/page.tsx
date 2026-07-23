@@ -24,6 +24,17 @@ import {
   migrateLegacySettings,
   type ExpenseSettings,
 } from "@/lib/analytics/calculateExpenses";
+import {
+  calculateGoalProgress,
+  DEFAULT_MONTHLY_GOALS,
+  monthlyGoalsSchema,
+  type MonthlyGoals,
+} from "@/lib/analytics/calculateGoalProgress";
+import {
+  calculateHistoricalRates,
+  getCurrentMonthKey,
+  getMonthStatus,
+} from "@/lib/analytics/monthStatus";
 import { calculateDriverInsights } from "@/lib/analytics/calculateDriverInsights";
 import { calculateWorkRecommendations } from "@/lib/analytics/calculateWorkRecommendations";
 import { calculateMonthlyDriverReport } from "@/lib/analytics/calculateMonthlyDriverReport";
@@ -47,6 +58,8 @@ import RevenueByMonthTable from "@/components/RevenueByMonthTable";
 import ProfitSettingsPanel from "@/components/ProfitSettingsPanel";
 import EstimatedProfitCard from "@/components/EstimatedProfitCard";
 import ProfitScenarios from "@/components/ProfitScenarios";
+import MonthlyGoalCard from "@/components/MonthlyGoalCard";
+import MonthStatusCard from "@/components/MonthStatusCard";
 import MonthlyDriverReport from "@/components/MonthlyDriverReport";
 import DriverInsights from "@/components/DriverInsights";
 import WorkRecommendations from "@/components/WorkRecommendations";
@@ -266,6 +279,45 @@ function setStoredSummaries(summaries: BoltMonthlySummary[]) {
   summariesListeners.forEach((l) => l());
 }
 
+// --- Monthly goals store (same SSR-safe localStorage pattern) ---
+const GOALS_KEY = "bolt-driver-analytics:monthly-goals:v1";
+let goalsCache: MonthlyGoals | null = null;
+const goalsListeners = new Set<() => void>();
+
+function loadGoals(): MonthlyGoals {
+  if (typeof window === "undefined") return DEFAULT_MONTHLY_GOALS;
+  try {
+    const raw = window.localStorage.getItem(GOALS_KEY);
+    if (!raw) return DEFAULT_MONTHLY_GOALS;
+    const parsed = monthlyGoalsSchema.safeParse(JSON.parse(raw));
+    return parsed.success ? parsed.data : DEFAULT_MONTHLY_GOALS;
+  } catch {
+    return DEFAULT_MONTHLY_GOALS;
+  }
+}
+
+function getGoalsSnapshot(): MonthlyGoals {
+  if (goalsCache === null) goalsCache = loadGoals();
+  return goalsCache;
+}
+
+function getServerGoalsSnapshot(): MonthlyGoals {
+  return DEFAULT_MONTHLY_GOALS;
+}
+
+function subscribeGoals(callback: () => void): () => void {
+  goalsListeners.add(callback);
+  return () => goalsListeners.delete(callback);
+}
+
+function setStoredGoals(goals: MonthlyGoals) {
+  goalsCache = goals;
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem(GOALS_KEY, JSON.stringify(goals));
+  }
+  goalsListeners.forEach((l) => l());
+}
+
 /** Insert or replace a summary by monthKey (one PDF per month wins). */
 function upsertSummary(
   summaries: BoltMonthlySummary[],
@@ -300,6 +352,11 @@ export default function Home() {
     subscribeSummaries,
     getSummariesSnapshot,
     getServerSummariesSnapshot,
+  );
+  const goals = useSyncExternalStore(
+    subscribeGoals,
+    getGoalsSnapshot,
+    getServerGoalsSnapshot,
   );
   const [summary, setSummary] = useState<ImportSummary | null>(null);
   const [busy, setBusy] = useState(false);
@@ -337,17 +394,44 @@ export default function Home() {
   // Use the real PDF figures only when EVERY month in the selection has a
   // matching summary. Custom ranges are excluded because a monthly total cannot
   // be safely applied to a partial-month revenue slice.
+  //
+  // For the CURRENT calendar month (whose PDF cannot exist yet) we fall back to
+  // historical rates learned from previous months' PDFs, flagged `estimated`.
   const pdfOverride = useMemo(() => {
     if (filter.mode === "custom" || monthsInSelection.length === 0) return undefined;
     const byKey = new Map(monthlySummaries.map((s) => [s.monthKey, s]));
     const matched = monthsInSelection.map((k) => byKey.get(k));
-    if (matched.some((s) => !s)) return undefined;
-    const found = matched as BoltMonthlySummary[];
-    const boltFee = found.reduce((sum, s) => sum + s.boltFee, 0);
-    const tripKilometers = found.reduce((sum, s) => sum + s.tripKilometers, 0);
-    if (!(boltFee > 0)) return undefined; // need a real fee to raise precision
-    return { boltFee, tripKilometers };
-  }, [filter.mode, monthsInSelection, monthlySummaries]);
+    if (!matched.some((s) => !s)) {
+      const found = matched as BoltMonthlySummary[];
+      const boltFee = found.reduce((sum, s) => sum + s.boltFee, 0);
+      const tripKilometers = found.reduce((sum, s) => sum + s.tripKilometers, 0);
+      if (boltFee > 0) return { boltFee, tripKilometers };
+    }
+
+    // Historical estimate: only for the single selected, still-running month.
+    if (
+      filter.mode === "month" &&
+      filter.monthKey === getCurrentMonthKey() &&
+      !byKey.has(filter.monthKey)
+    ) {
+      const rates = calculateHistoricalRates(monthlySummaries);
+      if (rates) {
+        return {
+          boltFee: metrics.totalRevenue * rates.boltFeeRate,
+          tripKilometers: metrics.totalRevenue * rates.kmPerRevenue,
+          estimated: true,
+        };
+      }
+    }
+    return undefined;
+  }, [filter, monthsInSelection, monthlySummaries, metrics.totalRevenue]);
+
+  // Month status: running / completed without PDF / completed with PDF.
+  const monthStatus = useMemo(() => {
+    if (filter.mode !== "month" || !filter.monthKey) return null;
+    const hasPdf = monthlySummaries.some((s) => s.monthKey === filter.monthKey);
+    return getMonthStatus(filter.monthKey, hasPdf);
+  }, [filter, monthlySummaries]);
 
   const profit = useMemo(
     () =>
@@ -374,6 +458,16 @@ export default function Home() {
       profit,
     });
   }, [filter, metrics, profit]);
+
+  // Goal progress — needs a specific month plus at least one target set.
+  const goalProgress = useMemo(() => {
+    if (filter.mode !== "month" || !filter.monthKey) return null;
+    return calculateGoalProgress(goals, {
+      monthKey: filter.monthKey,
+      metrics,
+      profit,
+    });
+  }, [filter, goals, metrics, profit]);
 
   // Driver insights for the selected range.
   const insights = useMemo(
@@ -514,6 +608,9 @@ export default function Home() {
                       workRecommendations: recommendations,
                       monthlySummaries,
                       monthlyDriverReport: monthlyReport,
+                      monthlyGoals: goals,
+                      goalProgress,
+                      monthStatus,
                     })
                   }
                 />
@@ -570,6 +667,21 @@ export default function Home() {
           {/* Overview KPIs */}
           <KpiCards metrics={metrics} simple={simpleMode} />
 
+          {/* Month status + data health check (month filter only) */}
+          {filter.mode === "month" && filter.monthKey && monthStatus && (
+            <MonthStatusCard
+              monthKey={filter.monthKey}
+              status={monthStatus}
+              csvPresent={filteredTrips.length > 0}
+              pdfPresent={monthlySummaries.some(
+                (s) => s.monthKey === filter.monthKey,
+              )}
+              boltFeeSource={profit.boltFeeSource}
+              kilometersSource={profit.kilometersSource}
+              accuracy={profit.profitAccuracy}
+            />
+          )}
+
           {/* Cost assumptions + estimated profit */}
           <ProfitSettingsPanel settings={settings} onChange={setStoredSettings} />
           <EstimatedProfitCard breakdown={profit} rangeLabel={rangeLabel} />
@@ -578,6 +690,15 @@ export default function Home() {
           <ProfitScenarios
             scenarios={scenarios}
             usedMonthlyPdf={profit.usedMonthlyPdf}
+          />
+
+          {/* Monthly goal & progress (month filter only) */}
+          <MonthlyGoalCard
+            goals={goals}
+            onChange={setStoredGoals}
+            progress={goalProgress}
+            isMonthSelected={filter.mode === "month"}
+            monthStatus={monthStatus}
           />
 
           {/* Monthly driver report (month filter only) */}

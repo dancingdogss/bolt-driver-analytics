@@ -107,6 +107,42 @@ describe("calculateProfit", () => {
     expect(b.profitPerKm).toBeCloseTo(b.estimatedProfit / 2452.01, 4);
   });
 
+  it("treats a historical-estimate override as medium accuracy, not PDF", () => {
+    const b = calculateProfit(8000, 300, 30, DEFAULT_EXPENSE_SETTINGS, {
+      boltFee: 1720, // 8.000 × historical 21.5%
+      tripKilometers: 1600,
+      estimated: true,
+    });
+    // The estimated fee replaces the default percent…
+    expect(b.boltCommissionCost).toBeCloseTo(1720, 2);
+    // …but never claims PDF precision.
+    expect(b.usedMonthlyPdf).toBe(false);
+    expect(b.profitAccuracy).toBe("medium");
+    expect(b.boltFeeSource).toBe("historical_estimate");
+    expect(b.kilometersSource).toBe("historical_estimate");
+    expect(b.realBoltFee).toBeNull();
+    // Estimated km still unlock per-km metrics (labeled estimated in UI).
+    expect(b.profitPerKm).toBeCloseTo(b.estimatedProfit / 1600, 4);
+  });
+
+  it("reports data sources for the plain default-estimate path", () => {
+    const b = calculateProfit(10000, 400, 30, DEFAULT_EXPENSE_SETTINGS);
+    expect(b.boltFeeSource).toBe("default_estimate");
+    expect(b.kilometersSource).toBe("unavailable");
+  });
+
+  it("drops to low accuracy under 50 trips", () => {
+    const noPdf = calculateProfit(1000, 20, 30, DEFAULT_EXPENSE_SETTINGS);
+    expect(noPdf.profitAccuracy).toBe("low");
+    // Even a real PDF cannot lift a too-small sample above low.
+    const withPdf = calculateProfit(1000, 20, 30, DEFAULT_EXPENSE_SETTINGS, {
+      boltFee: 250,
+      tripKilometers: 300,
+    });
+    expect(withPdf.profitAccuracy).toBe("low");
+    expect(withPdf.boltFeeSource).toBe("real_pdf");
+  });
+
   it("applies per-km costs only when real kilometers exist", () => {
     const settings = {
       ...DEFAULT_EXPENSE_SETTINGS,

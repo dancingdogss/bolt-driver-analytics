@@ -5,18 +5,36 @@ import {
 } from "./calculateExpenses";
 
 /**
- * Real figures pulled from a matching Bolt monthly-summary PDF. When present,
- * they replace the estimated commission and unlock per-kilometer metrics.
+ * Bolt fee + kilometrage figures used instead of the default percent estimate.
+ * With `estimated` unset these are the REAL figures of a matching monthly PDF;
+ * with `estimated: true` they are projections from previous months' PDFs (used
+ * for the current, still-running month whose PDF does not exist yet).
  */
 export interface MonthlyProfitOverride {
-  /** `Taxă Bolt` — the real platform fee, replaces the estimated percentage. */
+  /** `Taxă Bolt` — real (PDF) or historical-estimate platform fee. */
   boltFee: number;
-  /** `Kilometraj pe cursă` — real kilometrage, enables lei/km, cost/km, profit/km. */
+  /** Kilometrage — real (PDF) or estimated from historical km-per-revenue. */
   tripKilometers: number;
+  /** True when the figures are historical estimates, not the month's own PDF. */
+  estimated?: boolean;
 }
 
-/** How trustworthy the profit figure is, given the available data. */
-export type ProfitAccuracy = "medium" | "high";
+/**
+ * How trustworthy the profit figure is, given the available data:
+ *  - "high": CSV + the month's real PDF;
+ *  - "medium": CSV only (current month, or a past month without its PDF);
+ *  - "low": not enough data to trust the estimate (under 50 trips).
+ */
+export type ProfitAccuracy = "high" | "medium" | "low";
+
+/** Where the Bolt fee figure came from. */
+export type BoltFeeSource = "real_pdf" | "historical_estimate" | "default_estimate";
+
+/** Where the kilometrage figure came from. */
+export type KilometersSource = "real_pdf" | "historical_estimate" | "unavailable";
+
+/** Below this many trips the estimate is flagged as low-confidence. */
+export const MIN_TRIPS_FOR_CONFIDENCE = 50;
 
 /** Full estimated-profit breakdown for the selected date range. */
 export interface ProfitBreakdown {
@@ -41,8 +59,12 @@ export interface ProfitBreakdown {
   profitMarginPercent: number;
   /** True when a matching monthly PDF supplied the real Bolt fee. */
   usedMonthlyPdf: boolean;
-  /** "high" with CSV + matching PDF, "medium" with CSV and an estimated fee. */
+  /** "high" with CSV + matching PDF, "medium" estimated, "low" too few trips. */
   profitAccuracy: ProfitAccuracy;
+  /** Where the Bolt fee came from: real PDF, historical estimate, or percent. */
+  boltFeeSource: BoltFeeSource;
+  /** Where the kilometrage came from: real PDF, historical estimate, or none. */
+  kilometersSource: KilometersSource;
   /** The percentage-based Bolt fee estimate (always computed, for reference). */
   estimatedBoltFee: number;
   /** The real Bolt fee from the PDF, or `null` when no PDF was used. */
@@ -79,13 +101,23 @@ export function calculateProfit(
   override?: MonthlyProfitOverride,
 ): ProfitBreakdown {
   const estimatedBoltFee = grossRevenue * (settings.boltCommissionPercent / 100);
-  const usedMonthlyPdf = !!override && override.boltFee > 0;
-  const boltCommissionCost = usedMonthlyPdf ? override!.boltFee : estimatedBoltFee;
+  const hasOverrideFee = !!override && override.boltFee > 0;
+  const usedMonthlyPdf = hasOverrideFee && !override!.estimated;
+  const boltCommissionCost = hasOverrideFee ? override!.boltFee : estimatedBoltFee;
+  const boltFeeSource: BoltFeeSource = usedMonthlyPdf
+    ? "real_pdf"
+    : hasOverrideFee
+      ? "historical_estimate"
+      : "default_estimate";
 
   const km =
-    usedMonthlyPdf && override!.tripKilometers > 0
-      ? override!.tripKilometers
-      : null;
+    !!override && override.tripKilometers > 0 ? override.tripKilometers : null;
+  const kilometersSource: KilometersSource =
+    km === null
+      ? "unavailable"
+      : override!.estimated
+        ? "historical_estimate"
+        : "real_pdf";
 
   const expenses = calculateExpenses(settings, {
     selectedDays,
@@ -114,7 +146,14 @@ export function calculateProfit(
     profitPerTrip: trips > 0 ? estimatedProfit / trips : 0,
     profitMarginPercent: grossRevenue > 0 ? (estimatedProfit / grossRevenue) * 100 : 0,
     usedMonthlyPdf,
-    profitAccuracy: usedMonthlyPdf ? "high" : "medium",
+    profitAccuracy:
+      trips < MIN_TRIPS_FOR_CONFIDENCE
+        ? "low"
+        : usedMonthlyPdf
+          ? "high"
+          : "medium",
+    boltFeeSource,
+    kilometersSource,
     estimatedBoltFee,
     realBoltFee: usedMonthlyPdf ? override!.boltFee : null,
     tripKilometers: km,

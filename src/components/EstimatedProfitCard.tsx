@@ -26,15 +26,27 @@ export default function EstimatedProfitCard({
 
   // Bolt fee first, then every configured cost line (skip empty ones so the
   // breakdown stays short and readable).
+  const boltRow =
+    b.boltFeeSource === "real_pdf"
+      ? { label: "Taxă Bolt reală", value: b.boltCommissionCost }
+      : b.boltFeeSource === "historical_estimate"
+        ? {
+            label: "Taxă Bolt estimată (pe baza lunilor anterioare)",
+            value: b.boltCommissionCost,
+            estimate: true,
+          }
+        : {
+            label: "Comision Bolt estimat",
+            value: b.boltCommissionCost,
+            estimate: true,
+          };
   const costRows: {
     label: string;
     value: number;
     estimate?: boolean;
     note?: string;
   }[] = [
-    highPrecision
-      ? { label: "Taxă Bolt reală", value: b.boltCommissionCost }
-      : { label: "Comision Bolt estimat", value: b.boltCommissionCost, estimate: true },
+    boltRow,
     ...b.expenses.lines
       .filter((line) => line.amount > 0 || line.needsKm)
       .map((line) => ({
@@ -57,13 +69,19 @@ export default function EstimatedProfitCard({
         <span className="rounded-full bg-zinc-800 px-2.5 py-0.5 text-sm font-medium text-zinc-300">
           Calcul estimativ
         </span>
-        {highPrecision ? (
+        {b.profitAccuracy === "high" && (
           <span className="rounded-full bg-emerald-950/50 px-2.5 py-0.5 text-sm font-medium text-emerald-300">
             Precizie ridicată
           </span>
-        ) : (
+        )}
+        {b.profitAccuracy === "medium" && (
           <span className="rounded-full bg-amber-950/50 px-2.5 py-0.5 text-sm font-medium text-amber-300">
             Precizie medie
+          </span>
+        )}
+        {b.profitAccuracy === "low" && (
+          <span className="rounded-full bg-red-950/50 px-2.5 py-0.5 text-sm font-medium text-red-300">
+            Precizie scăzută
           </span>
         )}
       </div>
@@ -185,14 +203,22 @@ export default function EstimatedProfitCard({
             </div>
           </div>
 
-          {/* Per-km metrics — only available with real kilometrage from the PDF. */}
+          {/* Per-km metrics — real (PDF) or estimated from previous months. */}
           {b.tripKilometers !== null && (
             <div className="rounded-xl bg-zinc-800/50 p-4">
               <p className="mb-2 text-sm text-zinc-300">
-                Pe kilometru real ·{" "}
+                {b.kilometersSource === "real_pdf"
+                  ? "Pe kilometru real"
+                  : "Pe kilometru estimat"}{" "}
+                ·{" "}
                 <span className="tabular-nums text-zinc-100">
                   {formatNumber(b.tripKilometers, 2)} km
                 </span>
+                {b.kilometersSource === "historical_estimate" && (
+                  <span className="ml-1.5 rounded bg-amber-950/50 px-1.5 text-xs font-medium text-amber-300">
+                    estimare
+                  </span>
+                )}
               </p>
               <div className="grid grid-cols-3 gap-3 text-center">
                 <KmStat label="Lei / km" value={b.revenuePerKm} />

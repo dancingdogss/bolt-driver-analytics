@@ -1,5 +1,5 @@
 import type { BoltMetrics } from "./calculateBoltMetrics";
-import type { ProfitBreakdown } from "./estimateProfit";
+import type { ProfitAccuracy, ProfitBreakdown } from "./estimateProfit";
 import { formatMonthLabel } from "@/lib/utils/dates";
 import { formatNumber, formatPercent, formatRon } from "@/lib/utils/money";
 
@@ -18,7 +18,7 @@ export interface MonthlyDriverReport {
   monthKey: string;
   monthLabel: string;
   usedMonthlyPdf: boolean;
-  accuracy: "high" | "medium";
+  accuracy: ProfitAccuracy;
   /** 3–5 simple sentences answering "cum a mers luna asta?". */
   conclusion: string;
   kpis: ReportKpi[];
@@ -193,7 +193,8 @@ export function calculateMonthlyDriverReport({
     { label: "Profit estimat", value: formatRon(profit.estimatedProfit) },
     {
       label: "Precizie calcul",
-      value: accuracy === "high" ? "Ridicată" : "Medie",
+      value:
+        accuracy === "high" ? "Ridicată" : accuracy === "low" ? "Scăzută" : "Medie",
     },
   ];
 

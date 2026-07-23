@@ -1,11 +1,19 @@
 import type { BoltMetrics } from "./calculateBoltMetrics";
 import type { DateRangeFilter, MonthlyRevenueRow } from "./dateFilter";
-import type { ProfitBreakdown, ProfitScenario } from "./estimateProfit";
+import type {
+  BoltFeeSource,
+  KilometersSource,
+  ProfitAccuracy,
+  ProfitBreakdown,
+  ProfitScenario,
+} from "./estimateProfit";
 import type { ExpenseBreakdown, ExpenseSettings } from "./calculateExpenses";
+import type { MonthStatus } from "./monthStatus";
 import type { DriverInsights } from "@/lib/types/analytics";
 import type { WorkRecommendations } from "@/lib/types/recommendations";
 import type { BoltMonthlySummary } from "@/lib/types/monthlySummary";
 import type { MonthlyDriverReport } from "./calculateMonthlyDriverReport";
+import type { GoalProgress, MonthlyGoals } from "./calculateGoalProgress";
 
 export interface ReportSummary {
   dateRange: {
@@ -43,6 +51,16 @@ export interface ReportSummary {
   monthlySummaries: BoltMonthlySummary[];
   /** Plain-Romanian monthly report; null unless a single month is selected. */
   monthlyDriverReport: MonthlyDriverReport | null;
+  /** The driver's monthly targets (0 = not set). */
+  monthlyGoals: MonthlyGoals;
+  /** Progress toward the goals; null unless a month is selected and a goal set. */
+  goalProgress: GoalProgress | null;
+  /** Status of the selected month; null unless a single month is selected. */
+  monthStatus: MonthStatus | null;
+  /** Convenience copies of the profit data-source flags (also in `profit`). */
+  profitAccuracy: ProfitAccuracy;
+  boltFeeSource: BoltFeeSource;
+  kilometersSource: KilometersSource;
 }
 
 interface BuildArgs {
@@ -59,6 +77,9 @@ interface BuildArgs {
   workRecommendations: WorkRecommendations;
   monthlySummaries: BoltMonthlySummary[];
   monthlyDriverReport: MonthlyDriverReport | null;
+  monthlyGoals: MonthlyGoals;
+  goalProgress: GoalProgress | null;
+  monthStatus: MonthStatus | null;
 }
 
 /**
@@ -79,6 +100,9 @@ export function buildReportSummary({
   workRecommendations,
   monthlySummaries,
   monthlyDriverReport,
+  monthlyGoals,
+  goalProgress,
+  monthStatus,
 }: BuildArgs): ReportSummary {
   return {
     dateRange: {
@@ -110,5 +134,11 @@ export function buildReportSummary({
     workRecommendations,
     monthlySummaries,
     monthlyDriverReport,
+    monthlyGoals,
+    goalProgress,
+    monthStatus,
+    profitAccuracy: profit.profitAccuracy,
+    boltFeeSource: profit.boltFeeSource,
+    kilometersSource: profit.kilometersSource,
   };
 }
