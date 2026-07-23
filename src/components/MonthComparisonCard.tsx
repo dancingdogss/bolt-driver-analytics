@@ -1,9 +1,13 @@
-import { ArrowDownRight, ArrowRight, ArrowUpRight, GitCompareArrows } from "lucide-react";
+import { ArrowDownRight, ArrowRight, ArrowUpRight, GitCompareArrows, Lightbulb } from "lucide-react";
 import type {
   ChangeDirection,
   MetricDelta,
   MonthComparison,
 } from "@/lib/analytics/calculateMonthComparison";
+import {
+  deriveMonthComparisonInsights,
+  type ComparisonInsight,
+} from "@/lib/analytics/deriveMonthComparisonInsights";
 import type { ProfitAccuracy } from "@/lib/analytics/estimateProfit";
 import { formatNumber, formatPercent, formatRon } from "@/lib/utils/money";
 
@@ -122,12 +126,47 @@ function EmptyState({ text }: { text: string }) {
   );
 }
 
+const INSIGHT_TONE_CLASS: Record<ComparisonInsight["tone"], string> = {
+  positive: "border-l-emerald-500",
+  negative: "border-l-red-500",
+  neutral: "border-l-zinc-500",
+};
+
+/** Up to three cautious, relational observations about the two months. */
+function InsightList({ insights }: { insights: ComparisonInsight[] }) {
+  if (insights.length === 0) return null;
+  return (
+    <div className="mt-4">
+      <p className="mb-2 flex items-center gap-2 text-sm font-medium text-zinc-300">
+        <Lightbulb className="h-4 w-4 text-zinc-400" aria-hidden />
+        Ce spun datele
+      </p>
+      <ul className="space-y-2">
+        {insights.map((insight) => (
+          <li
+            key={insight.id}
+            className={`rounded-lg border-l-2 bg-zinc-800/50 px-3 py-2.5 text-sm leading-relaxed text-zinc-200 ${INSIGHT_TONE_CLASS[insight.tone]}`}
+          >
+            {insight.text}
+            {insight.qualifyProfitAccuracy && (
+              <span className="mt-1.5 block rounded bg-amber-950/50 px-2 py-1 text-xs font-medium text-amber-300">
+                Precizie scăzută pentru profit — interpretează cu prudență.
+              </span>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 /**
  * "Comparație lună": compares the selected completed month against the nearest
  * earlier imported month. Revenue/profit/per-day use green/red directional
  * styling; trip count is intentionally neutral. Profit is always labeled
  * "Profit estimat" — other configured expenses keep it an estimate even with a
- * real monthly PDF.
+ * real monthly PDF. Below the numbers, up to three cautious insights explain
+ * relationships between the metrics (deterministic, no recommendations).
  */
 export default function MonthComparisonCard({
   comparison,
@@ -191,6 +230,9 @@ export default function MonthComparisonCard({
               neutral={false}
             />
           </div>
+
+          {/* Relational insights derived from the comparison. */}
+          <InsightList insights={deriveMonthComparisonInsights(comparison)} />
 
           {/* Calculation-accuracy context for both months. */}
           <div className="mt-4 flex flex-wrap items-center gap-2">
