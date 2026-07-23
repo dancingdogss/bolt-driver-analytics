@@ -136,3 +136,79 @@ export interface WorkRecommendations {
   topRevenuePickup: PickupRecommendation | null;
   highValuePickups: PickupRecommendation[];
 }
+
+/* --- Historical holdout validation ("Verificare istorică a metodei") --- */
+
+/**
+ * Outcome of validating one recommendation against the holdout month:
+ *  - "confirmat": enough holdout observations and the pattern held up;
+ *  - "neconfirmat": enough observations, but the pattern was materially weaker;
+ *  - "date_insuficiente": too few holdout observations to judge — this is NOT a
+ *    failure, only a lack of evidence (the driver may not have worked then).
+ */
+export type ValidationOutcome = "confirmat" | "neconfirmat" | "date_insuficiente";
+
+/** Why the historical validation could not run at all. */
+export type ValidationUnavailableReason =
+  | "no_holdout"
+  | "training_insufficient"
+  | "no_reliable_patterns"
+  | "holdout_insufficient";
+
+/** Validation result for the recommended best weekday. */
+export interface ValidatedWeekday {
+  weekday: number;
+  label: string;
+  outcome: ValidationOutcome;
+  /** Distinct dates of this weekday observed in the holdout month. */
+  holdoutActiveDates: number;
+  /** Revenue per active date for this weekday in the holdout month. */
+  holdoutRevenuePerActiveDay: number;
+  /** 1-based rank among reliable holdout weekdays (null when unjudged). */
+  rank: number | null;
+  /** Count of reliable holdout weekdays it was ranked against (null if unjudged). */
+  rankOf: number | null;
+}
+
+/** Validation result for one recommended 3-hour window. */
+export interface ValidatedWindow {
+  weekday: number;
+  startHour: number;
+  label: string;
+  outcome: ValidationOutcome;
+  /** Distinct dates this window was observed in the holdout month. */
+  holdoutActiveDays: number;
+  /** Distinct ISO weeks this window was observed in the holdout month. */
+  holdoutDistinctWeeks: number;
+}
+
+/**
+ * A small, honest check of the recommendation METHOD: learn from the completed
+ * months strictly before the most recent qualifying completed month, then see
+ * whether those patterns held up in that held-out month. Training and holdout
+ * never share a trip, and the current (incomplete) month is fully excluded.
+ * Display-only — it never feeds back into live ranking or confidence.
+ */
+export interface RecommendationValidation {
+  available: boolean;
+  unavailableReason: ValidationUnavailableReason | null;
+
+  /** Training period (completed months strictly before the holdout month). */
+  trainingFirstMonthKey: string | null;
+  trainingLastMonthKey: string | null;
+  trainingTripCount: number;
+  /** Completed training months with ≥50 trips (existing evidence rule). */
+  trainingEvidenceMonthCount: number;
+
+  /** The independent holdout month. */
+  holdoutMonthKey: string | null;
+  holdoutTripCount: number;
+
+  /** True when only one training month has enough volume — result is indicative. */
+  limited: boolean;
+
+  weekday: ValidatedWeekday | null;
+  /** False when the holdout has too few eligible windows to rank (<8). */
+  windowPoolSufficient: boolean;
+  windows: ValidatedWindow[];
+}

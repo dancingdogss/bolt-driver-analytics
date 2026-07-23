@@ -1,8 +1,19 @@
-import { AlertTriangle, Info, Lightbulb, TrendingDown } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  HelpCircle,
+  Info,
+  Lightbulb,
+  TrendingDown,
+  XCircle,
+} from "lucide-react";
 import type {
   ConfidenceLevel,
   PickupRecommendation,
   RecommendationLearning,
+  RecommendationValidation,
+  ValidatedWindow,
+  ValidationOutcome,
   WeekdayStat,
   WorkRecommendations as WorkRecommendationsData,
 } from "@/lib/types/recommendations";
@@ -11,6 +22,8 @@ import { formatNumber, formatRon } from "@/lib/utils/money";
 
 interface WorkRecommendationsProps {
   data: WorkRecommendationsData;
+  /** Historical holdout validation of the method (train past, test holdout). */
+  validation: RecommendationValidation;
   /** Whether the current (incomplete) month is added to the completed history. */
   includeCurrentMonth: boolean;
   onToggleIncludeCurrentMonth: (include: boolean) => void;
@@ -88,6 +101,7 @@ function Card({
 
 export default function WorkRecommendations({
   data,
+  validation,
   includeCurrentMonth,
   onToggleIncludeCurrentMonth,
 }: WorkRecommendationsProps) {
@@ -152,6 +166,8 @@ export default function WorkRecommendations({
           />
         </div>
       )}
+
+      <ValidationCard validation={validation} />
     </section>
   );
 }
@@ -604,5 +620,218 @@ function NotRepeatedLine() {
       Niciun interval nu s-a repetat încă destul (minim 3 zile diferite, din 2
       săptămâni).
     </p>
+  );
+}
+
+/* --- Historical holdout validation ("Verificare istorică a metodei") --- */
+
+const VALIDATION_UNAVAILABLE_TEXT: Record<
+  NonNullable<RecommendationValidation["unavailableReason"]>,
+  string
+> = {
+  no_holdout:
+    "Verificarea separată devine posibilă după cel puțin două luni complete cu volum suficient de curse.",
+  training_insufficient:
+    "Nu sunt destule curse în lunile de dinaintea lunii de verificare pentru a antrena metoda.",
+  no_reliable_patterns:
+    "Lunile de antrenare nu au produs încă tipare repetate care să poată fi verificate.",
+  holdout_insufficient:
+    "Luna de verificare nu are destule curse pentru o comparație corectă.",
+};
+
+const OUTCOME_META: Record<
+  ValidationOutcome,
+  { label: string; className: string; Icon: typeof CheckCircle2 }
+> = {
+  confirmat: {
+    label: "Confirmat",
+    className: "border-emerald-800 bg-emerald-950/40 text-emerald-300",
+    Icon: CheckCircle2,
+  },
+  neconfirmat: {
+    label: "Neconfirmat",
+    className: "border-amber-800 bg-amber-950/40 text-amber-300",
+    Icon: XCircle,
+  },
+  date_insuficiente: {
+    label: "Date insuficiente",
+    className: "border-zinc-600 bg-zinc-800 text-zinc-300",
+    Icon: HelpCircle,
+  },
+};
+
+function OutcomeBadge({ outcome }: { outcome: ValidationOutcome }) {
+  const { label, className, Icon } = OUTCOME_META[outcome];
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-sm font-medium ${className}`}
+    >
+      <Icon className="h-4 w-4" aria-hidden />
+      {label}
+    </span>
+  );
+}
+
+/** "Iunie 2026" style; safe for null keys. */
+function monthLabelOrDash(key: string | null): string {
+  return key ? formatMonthLabel(key) : "—";
+}
+
+/** "Aprilie–Mai 2026" (shared year shown once), or a single month. */
+function trainingRangeLabel(first: string | null, last: string | null): string {
+  if (!first || !last) return monthLabelOrDash(first ?? last);
+  if (first === last) return formatMonthLabel(first);
+  const a = formatMonthLabel(first);
+  const b = formatMonthLabel(last);
+  const [aName, aYear] = a.split(" ");
+  return aYear === b.split(" ")[1] ? `${aName}–${b}` : `${a}–${b}`;
+}
+
+/** The one honest line explaining absence of observations, when relevant. */
+const INSUFFICIENT_OBSERVATION_NOTE =
+  "Asta nu înseamnă că intervalul a fost slab; aplicația nu poate ști dacă " +
+  "șoferul a fost online fără curse.";
+
+/**
+ * The caution shown when training is thin, driven ONLY by the evidence-month
+ * count (a completed training month with ≥50 trips). `limited` covers both 0
+ * and 1 evidence months, so the wording must distinguish them — and must never
+ * name a month, since the last chronological training month may be sparse while
+ * an earlier month is the real evidence month. Returns null when not limited.
+ */
+export function limitedTrainingNote(
+  evidenceMonthCount: number,
+): string | null {
+  if (evidenceMonthCount === 0) {
+    return (
+      "Rezultatul este foarte limitat: deși există suficiente curse cumulat, " +
+      "nicio lună de antrenare nu are individual minimum 50 de curse."
+    );
+  }
+  if (evidenceMonthCount === 1) {
+    return (
+      "Rezultatul este orientativ: antrenarea are o singură lună cu minimum " +
+      "50 de curse."
+    );
+  }
+  return null;
+}
+
+function ValidationCard({
+  validation,
+}: {
+  validation: RecommendationValidation;
+}) {
+  return (
+    <div className="mt-5 rounded-2xl border border-zinc-800 bg-zinc-900 p-5 shadow-sm">
+      <h4 className="flex items-center gap-2 text-base font-semibold text-zinc-100">
+        <Info className="h-5 w-5 text-sky-400" aria-hidden />
+        Verificare istorică a metodei
+      </h4>
+
+      {!validation.available ? (
+        <p className="mt-3 text-base text-zinc-300">
+          {validation.unavailableReason
+            ? VALIDATION_UNAVAILABLE_TEXT[validation.unavailableReason]
+            : "Verificarea nu este disponibilă momentan."}
+        </p>
+      ) : (
+        <ValidationBody validation={validation} />
+      )}
+    </div>
+  );
+}
+
+function ValidationBody({
+  validation,
+}: {
+  validation: RecommendationValidation;
+}) {
+  const trainingRange = trainingRangeLabel(
+    validation.trainingFirstMonthKey,
+    validation.trainingLastMonthKey,
+  );
+  const holdout = monthLabelOrDash(validation.holdoutMonthKey);
+
+  // At most three window results, most useful first (the recommended order).
+  const windowsToShow = validation.windows.slice(0, 3);
+
+  return (
+    <div className="mt-3 space-y-4">
+      <p className="text-base text-zinc-200">
+        Învățat din {trainingRange} ({curseText(validation.trainingTripCount)}).
+        Verificat separat pe {holdout} ({curseText(validation.holdoutTripCount)}).
+      </p>
+      <p className="text-sm text-zinc-400">
+        Pentru această verificare, recomandările au fost calculate fără {holdout},
+        deși recomandările afișate mai sus folosesc toate lunile complete. Așa
+        testăm metoda pe o lună pe care nu a „văzut-o”.
+      </p>
+
+      {limitedTrainingNote(validation.trainingEvidenceMonthCount) && (
+        <div className="flex gap-2.5 rounded-xl border border-amber-900/50 bg-amber-950/20 p-3 text-sm leading-relaxed text-amber-200">
+          <AlertTriangle
+            className="mt-0.5 h-5 w-5 shrink-0 text-amber-400"
+            aria-hidden
+          />
+          <p>{limitedTrainingNote(validation.trainingEvidenceMonthCount)}</p>
+        </div>
+      )}
+
+      {/* Weekday result */}
+      {validation.weekday && (
+        <div className="rounded-xl bg-zinc-800/40 p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-base font-semibold text-zinc-50">
+              Cea mai bună zi: {validation.weekday.label}
+            </p>
+            <OutcomeBadge outcome={validation.weekday.outcome} />
+          </div>
+          <p className="mt-1 text-sm text-zinc-400">
+            {validation.weekday.outcome === "date_insuficiente"
+              ? `În ${holdout}: curse în ${zileText(validation.weekday.holdoutActiveDates)} de ${validation.weekday.label}. ${INSUFFICIENT_OBSERVATION_NOTE}`
+              : `În ${holdout}: locul ${formatNumber(validation.weekday.rank ?? 0)} din ${formatNumber(validation.weekday.rankOf ?? 0)} zile, în medie ${formatRon(validation.weekday.holdoutRevenuePerActiveDay)} pe zi cu curse.`}
+          </p>
+        </div>
+      )}
+
+      {/* Window results */}
+      {!validation.windowPoolSufficient ? (
+        <p className="text-sm text-zinc-400">
+          Intervalele de 3 ore nu pot fi verificate: {holdout} nu are destule
+          intervale repetate pentru o comparație corectă.
+        </p>
+      ) : (
+        windowsToShow.length > 0 && (
+          <ul className="space-y-2">
+            {windowsToShow.map((w) => (
+              <ValidationWindowRow key={`${w.weekday}-${w.startHour}`} window={w} holdout={holdout} />
+            ))}
+          </ul>
+        )
+      )}
+    </div>
+  );
+}
+
+function ValidationWindowRow({
+  window,
+  holdout,
+}: {
+  window: ValidatedWindow;
+  holdout: string;
+}) {
+  return (
+    <li className="rounded-xl bg-zinc-800/40 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-base font-semibold text-zinc-100">{window.label}</p>
+        <OutcomeBadge outcome={window.outcome} />
+      </div>
+      <p className="mt-1 text-sm text-zinc-400">
+        {window.outcome === "date_insuficiente"
+          ? `În ${holdout}: curse în ${zileText(window.holdoutActiveDays)}. ${INSUFFICIENT_OBSERVATION_NOTE}`
+          : `În ${holdout}: interval repetat în ${zileText(window.holdoutActiveDays)}, pe parcursul a ${saptamaniText(window.holdoutDistinctWeeks)}.`}
+      </p>
+    </li>
   );
 }

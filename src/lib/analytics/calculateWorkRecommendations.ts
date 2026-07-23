@@ -257,12 +257,49 @@ function windowLabel(weekday: number, startHour: number): string {
 }
 
 /**
- * Build all RELIABLE weekday + 3-hour sliding windows, scored.
+ * One window candidate (a weekday + 3-hour start) with its raw bucket stats,
+ * whether or not it is reliable. Unlike `WindowRecommendation` this carries no
+ * opportunity score — it is the pre-scoring view used for observation counts.
+ */
+export interface WindowCandidate {
+  weekday: number;
+  startHour: number;
+  label: string;
+  trips: number;
+  revenue: number;
+  averageTripValue: number;
+  activeDays: number;
+  distinctWeeks: number;
+  revenuePerActiveDay: number;
+  tripsPerActiveDay: number;
+  /** True when it cleared eligibility (≥3 dates across ≥2 ISO weeks). */
+  reliable: boolean;
+}
+
+/**
+ * The complete window pipeline in one coherent, deterministic result:
+ *  - `all`: every window that had at least one trip (reliable or not);
+ *  - `eligibleSorted`: reliable windows, scored, best-first;
+ *  - `top`: the non-overlapping top selection cut from `eligibleSorted`.
+ *
+ * Both the live engine and the historical validation consume this — there is a
+ * single window-scoring / sorting / de-duplication path, never a second one.
+ */
+export interface WindowAnalysis {
+  all: WindowCandidate[];
+  eligibleSorted: WindowRecommendation[];
+  top: WindowRecommendation[];
+}
+
+/**
+ * Analyze all weekday + 3-hour sliding windows for a set of trips.
  *
  * Windows start at 00:00 … 21:00 and each spans 3 hours, so a trip at hour `h`
  * belongs to every window whose start is in `[h-2, h]` (clamped to 0…21).
+ * Scoring normalizes against the ELIGIBLE maxima only, so an ineligible outlier
+ * never distorts the reliable candidates' scores.
  */
-function buildWindows(trips: BoltTrip[]): WindowRecommendation[] {
+export function analyzeWindows(trips: BoltTrip[], limit = 5): WindowAnalysis {
   const byWindow = new Map<string, Bucket>();
 
   for (const trip of trips) {
@@ -276,37 +313,68 @@ function buildWindows(trips: BoltTrip[]): WindowRecommendation[] {
     }
   }
 
-  const eligible = [...byWindow.entries()]
-    .map(([key, b]) => {
-      const [weekday, startHour] = key.split("-").map(Number);
-      return { weekday, startHour, stats: bucketStats(b) };
-    })
-    .filter(
-      (r) =>
-        r.stats.days >= MIN_ACTIVE_DAYS && r.stats.weeks >= MIN_DISTINCT_WEEKS,
+  const candidates = [...byWindow.entries()].map(([key, b]) => {
+    const [weekday, startHour] = key.split("-").map(Number);
+    const stats = bucketStats(b);
+    const reliable =
+      stats.days >= MIN_ACTIVE_DAYS && stats.weeks >= MIN_DISTINCT_WEEKS;
+    return { weekday, startHour, stats, reliable };
+  });
+
+  const max = eligibleMaxima(
+    candidates.filter((c) => c.reliable).map((c) => c.stats),
+  );
+
+  const all: WindowCandidate[] = candidates.map(
+    ({ weekday, startHour, stats: s, reliable }) => ({
+      weekday,
+      startHour,
+      label: windowLabel(weekday, startHour),
+      trips: s.trips,
+      revenue: s.revenue,
+      averageTripValue: s.avg,
+      activeDays: s.days,
+      distinctWeeks: s.weeks,
+      revenuePerActiveDay: s.revenuePerActiveDay,
+      tripsPerActiveDay: s.tripsPerActiveDay,
+      reliable,
+    }),
+  );
+
+  const eligibleSorted: WindowRecommendation[] = candidates
+    .filter((c) => c.reliable)
+    .map(({ weekday, startHour, stats: s }) => ({
+      weekday,
+      startHour,
+      label: windowLabel(weekday, startHour),
+      trips: s.trips,
+      revenue: s.revenue,
+      averageTripValue: s.avg,
+      activeDays: s.days,
+      distinctWeeks: s.weeks,
+      revenuePerActiveDay: s.revenuePerActiveDay,
+      tripsPerActiveDay: s.tripsPerActiveDay,
+      reliable: true,
+      score: opportunityScore(s, max),
+      confidence: itemConfidence(true, s.days, s.weeks),
+    }))
+    .sort(
+      (a, b) =>
+        b.score - a.score ||
+        b.revenuePerActiveDay - a.revenuePerActiveDay ||
+        a.weekday - b.weekday ||
+        a.startHour - b.startHour,
     );
 
-  const max = eligibleMaxima(eligible.map((r) => r.stats));
-
-  return eligible.map(({ weekday, startHour, stats: s }) => ({
-    weekday,
-    startHour,
-    label: windowLabel(weekday, startHour),
-    trips: s.trips,
-    revenue: s.revenue,
-    averageTripValue: s.avg,
-    activeDays: s.days,
-    distinctWeeks: s.weeks,
-    revenuePerActiveDay: s.revenuePerActiveDay,
-    tripsPerActiveDay: s.tripsPerActiveDay,
-    reliable: true,
-    score: opportunityScore(s, max),
-    confidence: itemConfidence(true, s.days, s.weeks),
-  }));
+  const top = selectNonOverlapping(eligibleSorted, limit);
+  return { all, eligibleSorted, top };
 }
 
 /** Two windows overlap when they share a weekday and (circularly) ≤2h apart. */
-function windowsOverlap(a: WindowRecommendation, b: WindowRecommendation) {
+export function windowsOverlap(
+  a: { weekday: number; startHour: number },
+  b: { weekday: number; startHour: number },
+) {
   return (
     a.weekday === b.weekday &&
     circularHourDistance(a.startHour, b.startHour) <= 2
@@ -421,7 +489,7 @@ export function calculateWorkRecommendations(
 
   const weekdays = buildWeekdays(trips);
   const bestHours = buildBestHours(trips);
-  const windows = buildWindows(trips);
+  const windowAnalysis = analyzeWindows(trips);
   const { mostCommonPickup, topRevenuePickup, highValuePickups } =
     buildPickups(trips);
 
@@ -432,22 +500,18 @@ export function calculateWorkRecommendations(
       ? reliableWeekdays[reliableWeekdays.length - 1]
       : null;
 
-  // Best windows: highest score first, overlapping windows de-duplicated.
-  const sortedBest = [...windows].sort(
-    (a, b) =>
-      b.score - a.score ||
-      b.revenuePerActiveDay - a.revenuePerActiveDay ||
-      a.weekday - b.weekday ||
-      a.startHour - b.startHour,
-  );
-  const bestWindows = selectNonOverlapping(sortedBest, 5);
+  // Best windows: the coherent de-duplicated top selection from the shared
+  // window analysis (highest score first, overlaps removed).
+  const bestWindows = windowAnalysis.top;
 
   // Weak windows: lowest score first, still only RELIABLE windows carrying
   // enough trips — a pattern must repeat before it can honestly be called
   // weak. Windows overlapping a selected best window are skipped, so the card
-  // never contradicts itself.
-  const sortedWeak = windows
+  // never contradicts itself. Reuses the same eligible candidates (no
+  // re-bucketing) and the same de-duplication.
+  const sortedWeak = windowAnalysis.eligibleSorted
     .filter((w) => w.trips >= MIN_TRIPS_FOR_WEAK_WINDOW)
+    .slice()
     .sort(
       (a, b) =>
         a.score - b.score ||

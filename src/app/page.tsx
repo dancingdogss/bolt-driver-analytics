@@ -42,6 +42,7 @@ import {
 import { calculateDriverInsights } from "@/lib/analytics/calculateDriverInsights";
 import { calculateWorkRecommendations } from "@/lib/analytics/calculateWorkRecommendations";
 import { scopeRecommendationTrips } from "@/lib/analytics/recommendationScope";
+import { validateWorkRecommendations } from "@/lib/analytics/validateRecommendations";
 import { calculateMonthlyDriverReport } from "@/lib/analytics/calculateMonthlyDriverReport";
 import { buildReportSummary } from "@/lib/analytics/reportSummary";
 import { parseBoltMonthlySummaryPdf } from "@/lib/parsers/parseBoltMonthlySummaryPdf";
@@ -570,6 +571,13 @@ export default function Home() {
     [recommendationScope],
   );
 
+  // Historical holdout validation of the METHOD — always over the full imported
+  // history, deliberately independent of the current-month opt-in toggle.
+  const recommendationValidation = useMemo(
+    () => validateWorkRecommendations(trips),
+    [trips],
+  );
+
   async function handleFiles(files: File[]) {
     setBusy(true);
     try {
@@ -803,6 +811,7 @@ export default function Home() {
           {/* Work recommendations */}
           <WorkRecommendations
             data={recommendations}
+            validation={recommendationValidation}
             includeCurrentMonth={recIncludeCurrentMonth}
             onToggleIncludeCurrentMonth={setStoredRecIncludeCurrent}
           />
