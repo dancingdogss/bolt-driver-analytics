@@ -35,6 +35,10 @@ import {
   getCurrentMonthKey,
   getMonthStatus,
 } from "@/lib/analytics/monthStatus";
+import {
+  calculateMonthComparison,
+  type MonthSnapshot,
+} from "@/lib/analytics/calculateMonthComparison";
 import { calculateDriverInsights } from "@/lib/analytics/calculateDriverInsights";
 import { calculateWorkRecommendations } from "@/lib/analytics/calculateWorkRecommendations";
 import { calculateMonthlyDriverReport } from "@/lib/analytics/calculateMonthlyDriverReport";
@@ -60,6 +64,9 @@ import EstimatedProfitCard from "@/components/EstimatedProfitCard";
 import ProfitScenarios from "@/components/ProfitScenarios";
 import MonthlyGoalCard from "@/components/MonthlyGoalCard";
 import MonthStatusCard from "@/components/MonthStatusCard";
+import MonthComparisonCard, {
+  type ComparisonUnavailableReason,
+} from "@/components/MonthComparisonCard";
 import MonthlyDriverReport from "@/components/MonthlyDriverReport";
 import DriverInsights from "@/components/DriverInsights";
 import WorkRecommendations from "@/components/WorkRecommendations";
@@ -469,6 +476,67 @@ export default function Home() {
     });
   }, [filter, goals, metrics, profit]);
 
+  // Month-over-month comparison — the selected COMPLETED month against the
+  // nearest earlier imported month. Reuses the same analytics + profit helpers
+  // per month (no duplicated parsing or profit logic). Returns either the
+  // comparison, or a reason the card should show an explanatory/empty state.
+  const { monthComparison, comparisonUnavailableReason } = useMemo<{
+    monthComparison: ReturnType<typeof calculateMonthComparison> | null;
+    comparisonUnavailableReason: ComparisonUnavailableReason | null;
+  }>(() => {
+    if (filter.mode !== "month" || !filter.monthKey) {
+      return { monthComparison: null, comparisonUnavailableReason: null };
+    }
+    // An in-progress month has incomplete totals — never compare it.
+    if (monthStatus === "current_month") {
+      return {
+        monthComparison: null,
+        comparisonUnavailableReason: "current_incomplete",
+      };
+    }
+    // Nearest earlier imported month = the entry before the selected month in
+    // the ascending list of months present in the data.
+    const idx = months.findIndex((m) => m.key === filter.monthKey);
+    const prevKey = idx > 0 ? months[idx - 1].key : undefined;
+    if (!prevKey) {
+      return { monthComparison: null, comparisonUnavailableReason: "no_previous" };
+    }
+
+    const buildSnapshot = (monthKey: string): MonthSnapshot => {
+      const monthFilter: DateRangeFilter = { mode: "month", monthKey };
+      const monthTrips = filterTrips(trips, monthFilter);
+      const monthMetrics = calculateBoltMetrics(monthTrips);
+      const monthDays = countSelectedDays(monthFilter, monthTrips);
+      // Completed month: use the real PDF fee/km when a matching summary exists;
+      // otherwise fall back to the default percentage estimate (never the
+      // current-month historical projection).
+      const pdf = monthlySummaries.find((s) => s.monthKey === monthKey);
+      const override =
+        pdf && pdf.boltFee > 0
+          ? { boltFee: pdf.boltFee, tripKilometers: pdf.tripKilometers }
+          : undefined;
+      const monthProfit = calculateProfit(
+        monthMetrics.totalRevenue,
+        monthMetrics.totalTrips,
+        monthDays,
+        settings,
+        override,
+      );
+      return { monthKey, metrics: monthMetrics, profit: monthProfit };
+    };
+
+    // The selected month reuses the already-computed metrics/profit.
+    const current: MonthSnapshot = {
+      monthKey: filter.monthKey,
+      metrics,
+      profit,
+    };
+    return {
+      monthComparison: calculateMonthComparison(current, buildSnapshot(prevKey)),
+      comparisonUnavailableReason: null,
+    };
+  }, [filter, monthStatus, months, trips, monthlySummaries, settings, metrics, profit]);
+
   // Driver insights for the selected range.
   const insights = useMemo(
     () =>
@@ -679,6 +747,14 @@ export default function Home() {
               boltFeeSource={profit.boltFeeSource}
               kilometersSource={profit.kilometersSource}
               accuracy={profit.profitAccuracy}
+            />
+          )}
+
+          {/* Completed-month comparison (month filter only) */}
+          {filter.mode === "month" && filter.monthKey && (
+            <MonthComparisonCard
+              comparison={monthComparison}
+              unavailableReason={comparisonUnavailableReason}
             />
           )}
 
