@@ -111,11 +111,11 @@ describe("calculateMonthlyDriverReport", () => {
     const lines = report.copyText.split("\n");
     expect(lines[0]).toBe("Raport Bolt - Iunie 2026");
     expect(lines).toContain("Curse: 100");
-    expect(lines).toContain("Cea mai bună zi: Marți");
-    expect(lines).toContain("Cel mai bun interval: 17:00–20:00");
+    expect(lines).toContain("Ziua cu cel mai mare venit: Marți");
+    expect(lines).toContain("Intervalul cu cel mai mare venit: 17:00–20:00");
   });
 
-  it("never uses forbidden aggressive wording", () => {
+  it("never uses forbidden aggressive or forward-looking wording", () => {
     const metrics = juneMetrics();
     // Force a low-margin month so the cautious margin bullet appears too.
     const profit = calculateProfit(5000, 100, 30, {
@@ -140,8 +140,49 @@ describe("calculateMonthlyDriverReport", () => {
     ]
       .join(" ")
       .toLowerCase();
-    for (const banned of ["garantat", "pierdut bani", "nu merită să lucrezi", "predicți"]) {
-      expect(all).not.toContain(banned);
+    const banned = [
+      // Aggressive / predictive.
+      "garantat",
+      "pierdut bani",
+      "nu merită să lucrezi",
+      "predicți",
+      // Forward-looking "when to work" claims that belong only to the engine.
+      "cele mai bune rezultate apar",
+      "cea mai bună zi pentru lucru",
+      "interval recomandat",
+      // Avoidance advice the CSV cannot justify.
+      "nu ieși la lucru",
+      "evită acest interval",
+    ];
+    for (const phrase of banned) {
+      expect(all).not.toContain(phrase);
     }
+  });
+
+  it("phrases the day/hour highlights as retrospective selected-period facts", () => {
+    const metrics = juneMetrics();
+    const profit = calculateProfit(5000, 100, 30, DEFAULT_EXPENSE_SETTINGS);
+    const report = calculateMonthlyDriverReport({
+      monthKey: "2026-06",
+      metrics,
+      profit,
+    })!;
+
+    // Conclusion is explicitly retrospective and disclaims future advice.
+    expect(report.conclusion).toContain("În perioada selectată");
+    expect(report.conclusion).toContain(
+      "nu este o recomandare pentru viitor",
+    );
+    // The highlights are framed by total revenue, not as "best time to work".
+    expect(report.wentWell[0]).toContain("cel mai mare venit total");
+    expect(report.wentWell[1]).toContain("cel mai mare venit total");
+    // The weakest-day note is descriptive, never calls the day "slabă".
+    expect(report.watchOut.join(" ")).not.toContain("slabă");
+    // Next-month bullets defer when-to-work advice to the recommendations card.
+    expect(report.nextMonth[0]).toContain("Recomandări pentru ieșit la lucru");
+    // The shareable text carries the same retrospective note.
+    expect(report.copyText).toContain(
+      "nu este o recomandare pentru viitor",
+    );
   });
 });

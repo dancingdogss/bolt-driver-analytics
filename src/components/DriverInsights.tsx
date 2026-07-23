@@ -5,6 +5,26 @@ interface DriverInsightsProps {
   insights: DriverInsightsData;
 }
 
+/**
+ * Card titles for the day/hour/pickup maxima. These describe the HIGHEST or
+ * LOWEST observed total in the currently selected period — they are not advice
+ * about when to work. The reliability-gated "Recomandări pentru ieșit la lucru"
+ * card is the only surface that recommends when to work.
+ */
+export const INSIGHT_LABELS = {
+  bestDay: "Ziua cu cel mai mare venit total",
+  worstDay: "Ziua cu cel mai mic venit total",
+  bestHour: "Ora cu cel mai mare venit total",
+  worstActiveHour: "Ora activă cu cel mai mic venit total",
+  mostCommonPickup: "Cea mai frecventă adresă de preluare",
+  topRevenuePickup: "Adresa cu cel mai mare venit total",
+} as const;
+
+/** The one line clarifying these are retrospective, not future recommendations. */
+export const INSIGHTS_PERIOD_DISCLAIMER =
+  "Acestea descriu perioada selectată și nu sunt recomandări pentru viitor. " +
+  "Pentru sfaturi despre când să ieși la lucru, vezi „Recomandări pentru ieșit la lucru”.";
+
 /** Driver insights as simple text cards, reacting to the active date range. */
 export default function DriverInsights({ insights: i }: DriverInsightsProps) {
   const { payments, averages } = i;
@@ -18,10 +38,10 @@ export default function DriverInsights({ insights: i }: DriverInsightsProps) {
         Cele mai importante concluzii din perioada selectată.
       </p>
 
-      {/* Best / worst days and hours + pickups */}
+      {/* Highest/lowest observed totals in the selected period (descriptive). */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <InsightCard
-          title="Cea mai bună zi"
+          title={INSIGHT_LABELS.bestDay}
           value={i.bestDay?.label ?? "—"}
           hint={
             i.bestDay
@@ -30,7 +50,7 @@ export default function DriverInsights({ insights: i }: DriverInsightsProps) {
           }
         />
         <InsightCard
-          title="Cea mai slabă zi cu activitate"
+          title={INSIGHT_LABELS.worstDay}
           value={i.worstDay?.label ?? "—"}
           hint={
             i.worstDay
@@ -40,7 +60,7 @@ export default function DriverInsights({ insights: i }: DriverInsightsProps) {
         />
         <div className="hidden lg:block" aria-hidden />
         <InsightCard
-          title="Cea mai bună oră"
+          title={INSIGHT_LABELS.bestHour}
           value={i.bestHour?.label ?? "—"}
           hint={
             i.bestHour
@@ -49,7 +69,7 @@ export default function DriverInsights({ insights: i }: DriverInsightsProps) {
           }
         />
         <InsightCard
-          title="Cea mai slabă oră cu activitate"
+          title={INSIGHT_LABELS.worstActiveHour}
           value={i.worstActiveHour?.label ?? "—"}
           hint={
             i.worstActiveHour
@@ -59,7 +79,7 @@ export default function DriverInsights({ insights: i }: DriverInsightsProps) {
         />
         <div className="hidden lg:block" aria-hidden />
         <InsightCard
-          title="Cea mai frecventă adresă de preluare"
+          title={INSIGHT_LABELS.mostCommonPickup}
           value={i.mostCommonPickup?.address ?? "—"}
           hint={
             i.mostCommonPickup
@@ -68,7 +88,7 @@ export default function DriverInsights({ insights: i }: DriverInsightsProps) {
           }
         />
         <InsightCard
-          title="Adresa cu cel mai mare venit"
+          title={INSIGHT_LABELS.topRevenuePickup}
           value={i.topRevenuePickup?.address ?? "—"}
           hint={
             i.topRevenuePickup
@@ -77,6 +97,10 @@ export default function DriverInsights({ insights: i }: DriverInsightsProps) {
           }
         />
       </div>
+
+      <p className="mt-3 text-sm leading-relaxed text-zinc-400">
+        {INSIGHTS_PERIOD_DISCLAIMER}
+      </p>
 
       {/* Payment insights */}
       <h4 className="mt-6 mb-3 text-sm font-semibold text-zinc-300">

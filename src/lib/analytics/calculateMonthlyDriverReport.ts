@@ -160,11 +160,11 @@ export function calculateMonthlyDriverReport({
   ];
   if (bestDay && hourWindow) {
     sentences.push(
-      `În datele importate, cele mai bune rezultate apar ${bestDay.name} și în intervalul ${hourWindow.label}.`,
+      `În perioada selectată, ziua cu cel mai mare venit total a fost ${bestDay.name}, iar cele mai mari venituri totale au fost în intervalul ${hourWindow.label}. Aceasta descrie perioada selectată și nu este o recomandare pentru viitor.`,
     );
   } else if (bestDay) {
     sentences.push(
-      `În datele importate, cea mai bună zi pare ${bestDay.name}.`,
+      `În perioada selectată, ziua cu cel mai mare venit total a fost ${bestDay.name}. Aceasta descrie perioada selectată și nu este o recomandare pentru viitor.`,
     );
   }
   sentences.push(
@@ -202,17 +202,17 @@ export function calculateMonthlyDriverReport({
   const wentWell: string[] = [];
   if (bestDay) {
     wentWell.push(
-      `Cea mai bună zi: ${bestDay.name} (${formatRon(bestDay.revenue)} în datele importate).`,
+      `Ziua cu cel mai mare venit total: ${bestDay.name} (${formatRon(bestDay.revenue)}).`,
     );
   }
   if (hourWindow) {
     wentWell.push(
-      `Cel mai bun interval orar: ${hourWindow.label} (${formatRon(hourWindow.revenue)}).`,
+      `Intervalul orar cu cel mai mare venit total: ${hourWindow.label} (${formatRon(hourWindow.revenue)}).`,
     );
   }
   if (topPickup) {
     wentWell.push(
-      `Cel mai bun punct de preluare: ${topPickup.address} (${formatNumber(topPickup.trips)} curse).`,
+      `Adresa de preluare cu cele mai multe curse: ${topPickup.address} (${formatNumber(topPickup.trips)} curse).`,
     );
   }
   if (wentWell.length === 0) {
@@ -223,7 +223,7 @@ export function calculateMonthlyDriverReport({
   const watchOut: string[] = [];
   if (weakestDay && bestDay && weakestDay.name !== bestDay.name) {
     watchOut.push(
-      `Ziua ${weakestDay.name} pare mai slabă în datele importate (${formatRon(weakestDay.revenue)}).`,
+      `Ziua cu cel mai mic venit total în perioada selectată: ${weakestDay.name} (${formatRon(weakestDay.revenue)}).`,
     );
   }
   watchOut.push(
@@ -241,7 +241,7 @@ export function calculateMonthlyDriverReport({
 
   // --- Pentru luna următoare. ---
   const nextMonth: string[] = [
-    "Verifică dacă intervalele bune se repetă și luna următoare.",
+    "Pentru zile și intervale cu tipare istorice, vezi secțiunea „Recomandări pentru ieșit la lucru”.",
     "Compară profitul după costuri, nu doar venitul brut.",
     usedMonthlyPdf
       ? "Păstrează obiceiul: încarcă PDF-ul lunar Bolt și pentru luna următoare."
@@ -261,8 +261,15 @@ export function calculateMonthlyDriverReport({
   if (usedMonthlyPdf && profit.tripKilometers !== null) {
     copyLines.push(`Kilometri: ${formatNumber(profit.tripKilometers, 2)} km`);
   }
-  if (bestDay) copyLines.push(`Cea mai bună zi: ${bestDay.name}`);
-  if (hourWindow) copyLines.push(`Cel mai bun interval: ${hourWindow.label}`);
+  if (bestDay) copyLines.push(`Ziua cu cel mai mare venit: ${bestDay.name}`);
+  if (hourWindow) {
+    copyLines.push(`Intervalul cu cel mai mare venit: ${hourWindow.label}`);
+  }
+  if (bestDay || hourWindow) {
+    copyLines.push(
+      "Notă: descrie perioada selectată, nu este o recomandare pentru viitor.",
+    );
+  }
   copyLines.push(
     usedMonthlyPdf
       ? "Observație: Calcul mai precis — PDF lunar Bolt importat."
