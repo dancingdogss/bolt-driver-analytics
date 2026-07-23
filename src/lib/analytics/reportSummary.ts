@@ -44,8 +44,8 @@ export interface ReportSummary {
   hourlyRevenue: BoltMetrics["hourlyRevenue"];
   topPickups: BoltMetrics["topPickups"];
   driverInsights: DriverInsights;
-  /** Whether recommendations used all imported data or the filtered selection. */
-  workRecommendationsUseAllData: boolean;
+  /** Whether the current (incomplete) month was opted into the recommendations. */
+  workRecommendationsIncludeCurrentMonth: boolean;
   workRecommendations: WorkRecommendations;
   /** All imported Bolt monthly-summary PDFs, keyed implicitly by monthKey. */
   monthlySummaries: BoltMonthlySummary[];
@@ -73,7 +73,7 @@ interface BuildArgs {
   profitScenarios: ProfitScenario[];
   monthlyRevenue: MonthlyRevenueRow[];
   insights: DriverInsights;
-  workRecommendationsUseAllData: boolean;
+  workRecommendationsIncludeCurrentMonth: boolean;
   workRecommendations: WorkRecommendations;
   monthlySummaries: BoltMonthlySummary[];
   monthlyDriverReport: MonthlyDriverReport | null;
@@ -96,7 +96,7 @@ export function buildReportSummary({
   profitScenarios,
   monthlyRevenue,
   insights,
-  workRecommendationsUseAllData,
+  workRecommendationsIncludeCurrentMonth,
   workRecommendations,
   monthlySummaries,
   monthlyDriverReport,
@@ -130,7 +130,7 @@ export function buildReportSummary({
     hourlyRevenue: metrics.hourlyRevenue,
     topPickups: metrics.topPickups,
     driverInsights: insights,
-    workRecommendationsUseAllData,
+    workRecommendationsIncludeCurrentMonth,
     workRecommendations,
     monthlySummaries,
     monthlyDriverReport,

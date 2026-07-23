@@ -41,6 +41,7 @@ import {
 } from "@/lib/analytics/calculateMonthComparison";
 import { calculateDriverInsights } from "@/lib/analytics/calculateDriverInsights";
 import { calculateWorkRecommendations } from "@/lib/analytics/calculateWorkRecommendations";
+import { scopeRecommendationTrips } from "@/lib/analytics/recommendationScope";
 import { calculateMonthlyDriverReport } from "@/lib/analytics/calculateMonthlyDriverReport";
 import { buildReportSummary } from "@/lib/analytics/reportSummary";
 import { parseBoltMonthlySummaryPdf } from "@/lib/parsers/parseBoltMonthlySummaryPdf";
@@ -208,38 +209,47 @@ function setStoredSimpleMode(enabled: boolean) {
   simpleModeListeners.forEach((l) => l());
 }
 
-// --- Recommendations data-source toggle (defaults to ALL imported data) ---
-const REC_ALL_DATA_KEY = "bolt-driver-analytics:rec-all-data:v1";
-let recAllDataCache: boolean | null = null;
-const recAllDataListeners = new Set<() => void>();
+// --- Recommendations: include the current (incomplete) month? Default OFF. ---
+// Deliberately a NEW key: the legacy "rec-all-data" toggle had different
+// semantics (dashboard filter vs. everything) and its saved "true" must not
+// silently opt users into incomplete current-month data. The old key stays
+// ignored.
+const REC_INCLUDE_CURRENT_MONTH_KEY =
+  "bolt-driver-analytics:rec-include-current-month:v1";
+let recIncludeCurrentCache: boolean | null = null;
+const recIncludeCurrentListeners = new Set<() => void>();
 
-function getRecAllDataSnapshot(): boolean {
-  if (recAllDataCache === null) {
+function getRecIncludeCurrentSnapshot(): boolean {
+  if (recIncludeCurrentCache === null) {
     try {
-      // Default on: only an explicit "0" turns it off.
-      recAllDataCache = window.localStorage.getItem(REC_ALL_DATA_KEY) !== "0";
+      // Default off: only an explicit "1" turns it on.
+      recIncludeCurrentCache =
+        window.localStorage.getItem(REC_INCLUDE_CURRENT_MONTH_KEY) === "1";
     } catch {
-      recAllDataCache = true;
+      recIncludeCurrentCache = false;
     }
   }
-  return recAllDataCache;
+  return recIncludeCurrentCache;
 }
 
-function getServerRecAllDataSnapshot(): boolean {
-  return true;
+function getServerRecIncludeCurrentSnapshot(): boolean {
+  return false;
 }
 
-function subscribeRecAllData(callback: () => void): () => void {
-  recAllDataListeners.add(callback);
-  return () => recAllDataListeners.delete(callback);
+function subscribeRecIncludeCurrent(callback: () => void): () => void {
+  recIncludeCurrentListeners.add(callback);
+  return () => recIncludeCurrentListeners.delete(callback);
 }
 
-function setStoredRecAllData(enabled: boolean) {
-  recAllDataCache = enabled;
+function setStoredRecIncludeCurrent(enabled: boolean) {
+  recIncludeCurrentCache = enabled;
   if (typeof window !== "undefined") {
-    window.localStorage.setItem(REC_ALL_DATA_KEY, enabled ? "1" : "0");
+    window.localStorage.setItem(
+      REC_INCLUDE_CURRENT_MONTH_KEY,
+      enabled ? "1" : "0",
+    );
   }
-  recAllDataListeners.forEach((l) => l());
+  recIncludeCurrentListeners.forEach((l) => l());
 }
 
 // --- Monthly-summary PDFs store (same SSR-safe localStorage pattern) ---
@@ -350,10 +360,10 @@ export default function Home() {
     getSimpleModeSnapshot,
     getServerSimpleModeSnapshot,
   );
-  const recUseAllData = useSyncExternalStore(
-    subscribeRecAllData,
-    getRecAllDataSnapshot,
-    getServerRecAllDataSnapshot,
+  const recIncludeCurrentMonth = useSyncExternalStore(
+    subscribeRecIncludeCurrent,
+    getRecIncludeCurrentSnapshot,
+    getServerRecIncludeCurrentSnapshot,
   );
   const monthlySummaries = useSyncExternalStore(
     subscribeSummaries,
@@ -549,12 +559,15 @@ export default function Home() {
     [filteredTrips, metrics, selectedDays, profit.estimatedProfit],
   );
 
-  // Recommendations use the full dataset by default (more data = better tipare),
-  // or the filtered selection when the toggle is off.
-  const recommendationTrips = recUseAllData ? trips : filteredTrips;
+  // Recommendations learn from COMPLETED calendar months only — never the
+  // dashboard filter. The opt-in toggle ADDS the current (incomplete) month.
+  const recommendationScope = useMemo(
+    () => scopeRecommendationTrips(trips, recIncludeCurrentMonth),
+    [trips, recIncludeCurrentMonth],
+  );
   const recommendations = useMemo(
-    () => calculateWorkRecommendations(recommendationTrips),
-    [recommendationTrips],
+    () => calculateWorkRecommendations(recommendationScope),
+    [recommendationScope],
   );
 
   async function handleFiles(files: File[]) {
@@ -672,7 +685,8 @@ export default function Home() {
                       profitScenarios: scenarios,
                       monthlyRevenue,
                       insights,
-                      workRecommendationsUseAllData: recUseAllData,
+                      workRecommendationsIncludeCurrentMonth:
+                        recIncludeCurrentMonth,
                       workRecommendations: recommendations,
                       monthlySummaries,
                       monthlyDriverReport: monthlyReport,
@@ -789,8 +803,8 @@ export default function Home() {
           {/* Work recommendations */}
           <WorkRecommendations
             data={recommendations}
-            useAllData={recUseAllData}
-            onToggleUseAllData={setStoredRecAllData}
+            includeCurrentMonth={recIncludeCurrentMonth}
+            onToggleIncludeCurrentMonth={setStoredRecIncludeCurrent}
           />
 
           {/* Revenue by month (full dataset, click to filter) */}

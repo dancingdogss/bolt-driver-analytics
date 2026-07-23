@@ -41,6 +41,31 @@ export function getMonthKey(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * ISO-8601 week key, e.g. `2026-W01`, computed deterministically from the
+ * LOCAL calendar date (year/month/day). The arithmetic runs entirely in UTC on
+ * that calendar date, so the result never shifts with the machine's timezone
+ * or DST. ISO rule: a week belongs to the year that contains its Thursday, so
+ * 29 Dec 2025 → `2026-W01` and 28 Dec 2025 → `2025-W52`.
+ */
+export function isoWeekKey(date: Date): string {
+  const utcMidnight = Date.UTC(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate(),
+  );
+  // ISO weekday 1 (Monday) … 7 (Sunday).
+  const isoWeekday = new Date(utcMidnight).getUTCDay() || 7;
+  // The Thursday of this date's ISO week decides the ISO year.
+  const thursday = utcMidnight + (4 - isoWeekday) * DAY_MS;
+  const isoYear = new Date(thursday).getUTCFullYear();
+  const yearStart = Date.UTC(isoYear, 0, 1);
+  const week = Math.ceil(((thursday - yearStart) / DAY_MS + 1) / 7);
+  return `${isoYear}-W${String(week).padStart(2, "0")}`;
+}
+
 /** Romanian month abbreviations, index 0 = January (Ianuarie). */
 const MONTHS_SHORT = [
   "Ian", "Feb", "Mar", "Apr", "Mai", "Iun",
